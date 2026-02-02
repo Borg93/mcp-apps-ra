@@ -107,11 +107,11 @@ def parse_alto_xml(xml_string: str) -> AltoData:
 
 @mcp.tool(
     name="view-document",
-    description="Visa ett dokument från Riksarkivet med interaktiv ALTO XML-visualisering. Ange image_id (t.ex. 'A0068523_00007')",
+    description="Display a document from Riksarkivet with interactive ALTO XML visualization. Provide image_id (e.g. 'A0068523_00007')",
     meta={"ui": {"resourceUri": RESOURCE_URI}},
 )
 def view_document(
-    image_id: Annotated[str, "Dokumentets bild-ID (t.ex. 'A0068523_00007')"],
+    image_id: Annotated[str, "Document image ID (e.g. 'A0068523_00007')"],
 ) -> str:
     """View a document from Riksarkivet with interactive ALTO overlay."""
     document_id = image_id.split("_")[0]
@@ -155,96 +155,38 @@ def view_document(
             {
                 "error": True,
                 "imageId": image_id,
-                "message": f"Fel vid laddning av dokument: {str(e)}",
+                "message": f"Error loading document: {str(e)}",
             }
         )
 
 
 @mcp.tool(
-    name="view-document-custom",
-    description="""Visa ett dokument med egen ALTO XML.
-
-Alternativ för bild:
-- image_url: Ange en URL till bilden
-- riksarkivet_image_id: Ange Riksarkivet image_id (t.ex. 'A0068523_00007') för att använda deras bild
-
-ALTO XML kan antingen laddas upp som fil till Claude eller klistras in som text.""",
+    name="upload-document",
+    description="Open the document viewer with upload functionality. User can upload ALTO XML and image files directly in the interface.",
     meta={"ui": {"resourceUri": RESOURCE_URI}},
 )
-def view_document_custom(
-    alto_xml_content: Annotated[str, "ALTO XML-innehållet som text"],
-    image_url: Annotated[str | None, "URL till dokumentbilden"] = None,
-    riksarkivet_image_id: Annotated[str | None, "Riksarkivet image_id för att hämta bild därifrån"] = None,
-    document_id: Annotated[str, "Dokument-ID för referens"] = "custom_document",
-) -> str:
-    """View a document with custom ALTO XML and flexible image source."""
-    try:
-        # Determine image URL
-        if riksarkivet_image_id:
-            final_image_url = f"https://lbiiif.riksarkivet.se/arkis!{riksarkivet_image_id}/full/max/0/default.jpg"
-            document_id = riksarkivet_image_id
-        elif image_url:
-            final_image_url = image_url
-        else:
-            return json.dumps(
-                {
-                    "error": True,
-                    "imageId": document_id,
-                    "message": "Ange antingen image_url eller riksarkivet_image_id",
-                }
-            )
-
-        alto_data = parse_alto_xml(alto_xml_content)
-
-        lines_data = [
-            {
-                "id": line.id,
-                "polygon": line.polygon,
-                "transcription": line.transcription,
-                "hpos": line.hpos,
-                "vpos": line.vpos,
-                "width": line.width,
-                "height": line.height,
-            }
-            for line in alto_data.text_lines
-        ]
-
-        result = {
-            "imageId": document_id,
-            "imageUrl": final_image_url,
-            "altoUrl": "content://provided-directly",
-            "pageWidth": alto_data.page_width,
-            "pageHeight": alto_data.page_height,
-            "textLines": lines_data,
-            "totalLines": len(lines_data),
-            "fullText": alto_data.full_text[:800]
-            + ("..." if len(alto_data.full_text) > 800 else ""),
+def upload_document() -> str:
+    """Open the document viewer with upload functionality."""
+    return json.dumps(
+        {
+            "mode": "upload",
+            "message": "Upload ALTO XML file and image file to view the document.",
         }
-
-        return json.dumps(result)
-
-    except Exception as e:
-        return json.dumps(
-            {
-                "error": True,
-                "imageId": document_id,
-                "message": f"Fel vid parsning av ALTO XML: {str(e)}",
-            }
-        )
+    )
 
 
 @mcp.tool(
     name="text-line-selected",
-    description="Anropas när användaren klickar på en textrad. Returnerar beskuren bild och begär översättning.",
+    description="Called when user clicks on a text line. Returns cropped image and requests translation.",
 )
 def text_line_selected(
-    line_id: Annotated[str, "ID för textraden"],
-    transcription: Annotated[str, "Den transkriberade texten"],
-    document_id: Annotated[str, "Dokument-ID"],
-    hpos: Annotated[int, "Horisontell position"],
-    vpos: Annotated[int, "Vertikal position"],
-    width: Annotated[int, "Bredd på textraden"],
-    height: Annotated[int, "Höjd på textraden"],
+    line_id: Annotated[str, "Text line ID"],
+    transcription: Annotated[str, "The transcribed text"],
+    document_id: Annotated[str, "Document ID"],
+    hpos: Annotated[int, "Horizontal position"],
+    vpos: Annotated[int, "Vertical position"],
+    width: Annotated[int, "Text line width"],
+    height: Annotated[int, "Text line height"],
 ) -> str:
     """Handle text line selection - return cropped image and request translation."""
     # Build IIIF crop URL: /{region}/{size}/{rotation}/{quality}.{format}
@@ -258,24 +200,24 @@ def text_line_selected(
     crop_url = f"https://lbiiif.riksarkivet.se/arkis!{document_id}/{crop_x},{crop_y},{crop_w},{crop_h}/max/0/default.jpg"
 
     return (
-        f"📍 Textrad vald\n\n"
-        f"Dokument: {document_id}\n"
-        f"Rad-ID: {line_id}\n\n"
-        f"**Beskuren bild av textraden:**\n{crop_url}\n\n"
-        f'**Original transkription (historisk svenska):**\n"{transcription}"\n\n'
-        f"**UPPGIFT:** Titta på bilden ovan och översätt den historiska svenska texten till modern svenska. "
-        f"Förklara vad texten betyder och ge kontext om det behövs."
+        f"📍 Text line selected\n\n"
+        f"Document: {document_id}\n"
+        f"Line ID: {line_id}\n\n"
+        f"**Cropped image of text line:**\n{crop_url}\n\n"
+        f'**Original transcription (historical Swedish):**\n"{transcription}"\n\n'
+        f"**TASK:** Look at the image above and translate the historical Swedish text to modern Swedish. "
+        f"Explain what the text means and provide context if needed."
     )
 
 
 @mcp.tool(
     name="fetch-all-document-text",
-    description="Hämtar all transkriberad text från dokumentet för översättning.",
+    description="Fetches all transcribed text from the document for translation.",
 )
 def fetch_all_document_text(
-    document_id: Annotated[str, "Dokument-ID"],
-    total_lines: Annotated[int, "Totalt antal textrader"],
-    transcriptions: Annotated[str, "JSON-array med transkriptioner"],
+    document_id: Annotated[str, "Document ID"],
+    total_lines: Annotated[int, "Total number of text lines"],
+    transcriptions: Annotated[str, "JSON array with transcriptions"],
 ) -> str:
     """Fetch all document text for translation."""
     try:
@@ -284,16 +226,16 @@ def fetch_all_document_text(
         full_text = " ".join(line["text"] for line in lines)
 
         return (
-            f"📄 Full dokumenttext hämtad\n\n"
-            f"Dokument: {document_id}\n"
-            f"Totalt antal rader: {total_lines}\n\n"
-            f"**Fullständig transkription (numrerade rader):**\n\n{all_text}\n\n"
+            f"📄 Full document text fetched\n\n"
+            f"Document: {document_id}\n"
+            f"Total lines: {total_lines}\n\n"
+            f"**Complete transcription (numbered lines):**\n\n{all_text}\n\n"
             f"---\n\n"
-            f"**Kontinuerlig text:**\n{full_text}\n\n"
-            f"**UPPGIFT:** Översätt hela dokumentet till modern svenska och ge en sammanfattning av innehållet."
+            f"**Continuous text:**\n{full_text}\n\n"
+            f"**TASK:** Translate the entire document to modern Swedish and provide a summary of the content."
         )
     except json.JSONDecodeError:
-        return "Fel: Kunde inte parsa transkriptionsdata"
+        return "Error: Could not parse transcription data"
 
 
 @mcp.resource(uri=RESOURCE_URI, mime_type=RESOURCE_MIME_TYPE)

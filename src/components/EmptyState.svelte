@@ -1,0 +1,43 @@
+<script lang="ts">
+// No props needed - just a static display component
+</script>
+
+<div class="empty-state">
+  <h2>Riksarkivet Document Viewer</h2>
+  <p>Waiting for document data...</p>
+  <p class="hint">
+    Use the <code>view-document</code> tool with an image ID
+    <br />
+    (e.g., 'A0068523_00007')
+    <br /><br />
+    Or use <code>upload-document</code> to upload your own files.
+  </p>
+</div>
+
+<style>
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-lg, 2rem);
+  background: var(--color-background-secondary);
+  border-radius: var(--border-radius-lg, 10px);
+  border: 1px solid var(--color-border-primary);
+}
+
+.empty-state h2 {
+  margin: 0 0 var(--spacing-sm, 0.5rem) 0;
+  font-size: var(--font-heading-lg-size, 1.25rem);
+}
+
+.empty-state p {
+  margin: var(--spacing-sm, 0.5rem) 0;
+  color: var(--color-text-secondary);
+}
+
+.empty-state code {
+  background: var(--color-background-tertiary);
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--border-radius-sm, 4px);
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+}
+</style>

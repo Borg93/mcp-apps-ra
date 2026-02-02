@@ -36,8 +36,9 @@
   --border-radius-lg: 10px;
   --border-width-regular: 1px;
 
-  /* Typography - Claude Serif Style */
-  --font-serif: "Tiempos Text", "Styrene", "Charter", "Source Serif Pro", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  /* Typography - Anthropic/Claude Style */
+  --font-anthropic-serif: "anthropicSerif", "anthropicSerif Fallback", Georgia, "Times New Roman", Times, serif;
+  --font-serif: var(--font-anthropic-serif);
   --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
