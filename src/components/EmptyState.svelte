@@ -21,6 +21,8 @@
   background: var(--color-background-secondary);
   border-radius: var(--border-radius-lg, 10px);
   border: 1px solid var(--color-border-primary);
+  max-width: 400px;
+  width: 100%;
 }
 
 .empty-state h2 {

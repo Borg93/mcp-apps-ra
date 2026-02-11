@@ -5,6 +5,7 @@ Interactive document viewer for Swedish National Archives with ALTO XML visualiz
 """
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -13,11 +14,11 @@ from pathlib import Path
 from typing import Annotated
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+from fastmcp.server.apps import ToolUI
 
 DIST_DIR = Path(__file__).parent / "dist"
 RESOURCE_URI = "ui://riksarkivet/mcp-app.html"
-RESOURCE_MIME_TYPE = "text/html;profile=mcp-app"
 
 mcp = FastMCP(name="Riksarkivet Document Viewer")
 
@@ -49,6 +50,31 @@ def fetch_alto_xml(image_id: str) -> str:
     response = httpx.get(alto_url, timeout=30.0)
     response.raise_for_status()
     return response.text
+
+
+def fetch_image_as_data_url(image_id: str, size: str = "1000,") -> str:
+    """Fetch image from Riksarkivet and return as base64 data URL.
+
+    MCP Apps CSP restricts img-src to data: only, so we must fetch
+    the image server-side and convert to a data URL.
+
+    Args:
+        image_id: Document image ID (e.g. 'A0068523_00007')
+        size: IIIF size parameter (default "1000," = 1000px wide, proportional height)
+    """
+    # IIIF URL: /{identifier}/{region}/{size}/{rotation}/{quality}.{format}
+    image_url = f"https://lbiiif.riksarkivet.se/arkis!{image_id}/full/{size}/0/default.jpg"
+
+    response = httpx.get(image_url, timeout=60.0)
+    response.raise_for_status()
+
+    # Get content type (should be image/jpeg)
+    content_type = response.headers.get("content-type", "image/jpeg")
+
+    # Encode to base64
+    b64_data = base64.b64encode(response.content).decode("utf-8")
+
+    return f"data:{content_type};base64,{b64_data}"
 
 
 def parse_alto_xml(xml_string: str) -> AltoData:
@@ -108,19 +134,23 @@ def parse_alto_xml(xml_string: str) -> AltoData:
 @mcp.tool(
     name="view-document",
     description="Display a document from Riksarkivet with interactive ALTO XML visualization. Provide image_id (e.g. 'A0068523_00007')",
-    meta={"ui": {"resourceUri": RESOURCE_URI}},
+    ui=ToolUI(resource_uri=RESOURCE_URI),
 )
 def view_document(
     image_id: Annotated[str, "Document image ID (e.g. 'A0068523_00007')"],
 ) -> str:
     """View a document from Riksarkivet with interactive ALTO overlay."""
     document_id = image_id.split("_")[0]
-    image_url = f"https://lbiiif.riksarkivet.se/arkis!{image_id}/full/max/0/default.jpg"
     alto_url = f"https://lbiiif.riksarkivet.se/download/current/alto/{document_id}?format=xml&imageid={image_id}"
 
     try:
+        # Fetch ALTO XML for text line data
         alto_xml = fetch_alto_xml(image_id)
         alto_data = parse_alto_xml(alto_xml)
+
+        # Fetch image and convert to data URL (CSP requires data: for img-src)
+        # Use a reasonable size for web viewing (1000px wide)
+        image_data_url = fetch_image_as_data_url(image_id, size="1000,")
 
         # Convert text lines to JSON for the frontend
         lines_data = [
@@ -138,7 +168,7 @@ def view_document(
 
         result = {
             "imageId": image_id,
-            "imageUrl": image_url,
+            "imageUrl": image_data_url,
             "altoUrl": alto_url,
             "pageWidth": alto_data.page_width,
             "pageHeight": alto_data.page_height,
@@ -163,7 +193,7 @@ def view_document(
 @mcp.tool(
     name="upload-document",
     description="Open the document viewer with upload functionality. User can upload ALTO XML and image files directly in the interface.",
-    meta={"ui": {"resourceUri": RESOURCE_URI}},
+    ui=ToolUI(resource_uri=RESOURCE_URI),
 )
 def upload_document() -> str:
     """Open the document viewer with upload functionality."""
@@ -210,35 +240,7 @@ def text_line_selected(
     )
 
 
-@mcp.tool(
-    name="fetch-all-document-text",
-    description="Fetches all transcribed text from the document for translation.",
-)
-def fetch_all_document_text(
-    document_id: Annotated[str, "Document ID"],
-    total_lines: Annotated[int, "Total number of text lines"],
-    transcriptions: Annotated[str, "JSON array with transcriptions"],
-) -> str:
-    """Fetch all document text for translation."""
-    try:
-        lines = json.loads(transcriptions)
-        all_text = "\n".join(f"{i + 1}. {line['text']}" for i, line in enumerate(lines))
-        full_text = " ".join(line["text"] for line in lines)
-
-        return (
-            f"📄 Full document text fetched\n\n"
-            f"Document: {document_id}\n"
-            f"Total lines: {total_lines}\n\n"
-            f"**Complete transcription (numbered lines):**\n\n{all_text}\n\n"
-            f"---\n\n"
-            f"**Continuous text:**\n{full_text}\n\n"
-            f"**TASK:** Translate the entire document to modern Swedish and provide a summary of the content."
-        )
-    except json.JSONDecodeError:
-        return "Error: Could not parse transcription data"
-
-
-@mcp.resource(uri=RESOURCE_URI, mime_type=RESOURCE_MIME_TYPE)
+@mcp.resource(uri=RESOURCE_URI)
 def get_ui_resource() -> str:
     html_path = DIST_DIR / "mcp-app.html"
     if not html_path.exists():

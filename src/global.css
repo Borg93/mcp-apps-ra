@@ -6,95 +6,49 @@
   --claude-orange-dark: #A14A2F;
   --claude-selection: rgba(193, 95, 60, 0.19);
 
-  /* Claude Theme - Light Mode (default) */
-  --color-background-primary: #faf9f5;
-  --color-background-secondary: #f5f4ed;
-  --color-background-tertiary: #ebe9e1;
-  --color-background-inverse: #1a1815;
-  --color-background-info: #fdf6f3;
-  --color-text-primary: #2c2c2c;
-  --color-text-secondary: #5c5c5c;
-  --color-text-inverse: #e8e6e3;
-  --color-text-info: #A14A2F;
-  --color-border-primary: #d4d2cb;
-  --color-ring-primary: var(--claude-orange);
+  /* Background colors - using light-dark() for automatic theme switching */
+  --color-background-primary: light-dark(#faf9f5, #1a1815);
+  --color-background-secondary: light-dark(#f5f4ed, #201d18);
+  --color-background-tertiary: light-dark(#ebe9e1, #2a2620);
+
+  /* Text colors */
+  --color-text-primary: light-dark(#2c2c2c, #e8e6e3);
+  --color-text-secondary: light-dark(#5c5c5c, #a8a6a3);
+
+  /* Border */
+  --color-border-primary: light-dark(#d4d2cb, #3a3632);
+
+  /* Accent colors */
   --color-accent: var(--claude-orange);
   --color-accent-dark: var(--claude-orange-dark);
   --color-text-on-accent: #ffffff;
-  --color-error: #b91c1c;
+  --color-error: light-dark(#b91c1c, #f87171);
 
   /* SVG Container background (document image) */
-  --color-svg-background: #ffffff;
+  --color-svg-background: light-dark(#ffffff, #252220);
 
   /* Tooltip colors */
-  --color-tooltip-background: rgba(44, 44, 44, 0.95);
-  --color-tooltip-text: #faf9f5;
+  --color-tooltip-background: light-dark(rgba(44, 44, 44, 0.95), rgba(232, 230, 227, 0.95));
+  --color-tooltip-text: light-dark(#faf9f5, #1a1815);
 
   /* Border and radius */
   --border-radius-sm: 4px;
   --border-radius-md: 6px;
   --border-radius-lg: 10px;
-  --border-width-regular: 1px;
 
-  /* Typography - Anthropic/Claude Style */
-  --font-anthropic-serif: "anthropicSerif", "anthropicSerif Fallback", Georgia, "Times New Roman", Times, serif;
-  --font-serif: var(--font-anthropic-serif);
-  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-
-  /* Font weights */
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-bold: 700;
+  /* Typography */
+  --font-sans: system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* Font sizes */
   --font-text-sm-size: 0.875rem;
   --font-text-md-size: 1rem;
-  --font-text-md-line-height: 1.6;
-  --font-heading-3xl-size: 2.25rem;
-  --font-heading-3xl-line-height: 1.1;
-  --font-heading-2xl-size: 1.875rem;
-  --font-heading-2xl-line-height: 1.2;
-  --font-heading-xl-size: 1.5rem;
-  --font-heading-xl-line-height: 1.25;
-  --font-heading-lg-size: 1.25rem;
-  --font-heading-lg-line-height: 1.3;
-  --font-heading-md-size: 1rem;
-  --font-heading-md-line-height: 1.4;
-  --font-heading-sm-size: 0.875rem;
-  --font-heading-sm-line-height: 1.4;
 
-  /* Spacing derived from typography */
-  --spacing-unit: var(--font-text-md-size);
-  --spacing-xs: calc(var(--spacing-unit) * 0.25);
-  --spacing-sm: calc(var(--spacing-unit) * 0.5);
-  --spacing-md: var(--spacing-unit);
-  --spacing-lg: calc(var(--spacing-unit) * 1.5);
-  --spacing-xl: calc(var(--spacing-unit) * 2);
-}
-
-/* Claude Theme - Dark Mode */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background-primary: #1a1815;
-    --color-background-secondary: #201d18;
-    --color-background-tertiary: #2a2620;
-    --color-background-inverse: #faf9f5;
-    --color-background-info: #2a2018;
-    --color-text-primary: #e8e6e3;
-    --color-text-secondary: #a8a6a3;
-    --color-text-inverse: #2c2c2c;
-    --color-text-info: #e09070;
-    --color-border-primary: #3a3632;
-    --color-error: #f87171;
-
-    /* SVG Container - slightly lighter for document viewing */
-    --color-svg-background: #252220;
-
-    /* Tooltip colors (inverted for dark mode) */
-    --color-tooltip-background: rgba(232, 230, 227, 0.95);
-    --color-tooltip-text: #1a1815;
-  }
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
 }
 
 * {
@@ -110,10 +64,8 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--font-text-md-size);
-  font-weight: var(--font-weight-normal);
-  line-height: var(--font-text-md-line-height);
   color: var(--color-text-primary);
   background: var(--color-background-primary);
   -webkit-font-smoothing: antialiased;
@@ -125,50 +77,9 @@ html, body {
   height: 100%;
 }
 
-h1 {
-  font-size: var(--font-heading-3xl-size);
-  line-height: var(--font-heading-3xl-line-height);
-  font-weight: var(--font-weight-medium);
-}
-h2 {
-  font-size: var(--font-heading-2xl-size);
-  line-height: var(--font-heading-2xl-line-height);
-  font-weight: var(--font-weight-medium);
-}
-h3 {
-  font-size: var(--font-heading-xl-size);
-  line-height: var(--font-heading-xl-line-height);
-  font-weight: var(--font-weight-medium);
-}
-h4 {
-  font-size: var(--font-heading-lg-size);
-  line-height: var(--font-heading-lg-line-height);
-  font-weight: var(--font-weight-medium);
-}
-h5 {
-  font-size: var(--font-heading-md-size);
-  line-height: var(--font-heading-md-line-height);
-  font-weight: var(--font-weight-medium);
-}
-h6 {
-  font-size: var(--font-heading-sm-size);
-  line-height: var(--font-heading-sm-line-height);
-  font-weight: var(--font-weight-medium);
-}
-
-code, pre, kbd {
-  font-family: var(--font-mono);
-  font-size: 0.9em;
-}
-
-b, strong {
-  font-weight: var(--font-weight-bold);
-}
-
 a {
   color: var(--color-accent);
   text-decoration: none;
-  transition: color 0.2s ease;
 }
 
 a:hover {
@@ -177,5 +88,5 @@ a:hover {
 }
 
 button {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
 }

@@ -6,10 +6,11 @@ import type { TextLine, DocumentData, TooltipState } from "../lib/types";
 interface Props {
   app: App;
   documentData: DocumentData;
+  displayMode?: "inline" | "fullscreen";
   onReset: () => void;
 }
 
-let { app, documentData, onReset }: Props = $props();
+let { app, documentData, displayMode = "inline", onReset }: Props = $props();
 
 // State
 let overlaysVisible = $state(true);
@@ -46,35 +47,6 @@ async function handleLineClick(line: TextLine) {
   }
 }
 
-async function handleFetchAllText() {
-  loading = true;
-  status = "Fetching all text...";
-
-  try {
-    const transcriptions = documentData.textLines.map((line, index) => ({
-      index: index + 1,
-      lineId: line.id,
-      text: line.transcription,
-    }));
-
-    await app.callServerTool({
-      name: "fetch-all-document-text",
-      arguments: {
-        document_id: documentData.imageId,
-        total_lines: documentData.totalLines,
-        transcriptions: JSON.stringify(transcriptions),
-      },
-    });
-    status = "All text sent for translation";
-  } catch (e) {
-    console.error(e);
-    status = "Failed to fetch text";
-  } finally {
-    loading = false;
-    setTimeout(() => (status = ""), 2000);
-  }
-}
-
 function handleMouseEnter(line: TextLine, e: MouseEvent) {
   tooltip = { text: line.transcription, x: e.clientX + 15, y: e.clientY + 15 };
   highlightedLine = line.id;
@@ -96,7 +68,7 @@ function toggleOverlays() {
 }
 </script>
 
-<div class="viewer-wrapper">
+<div class="viewer-wrapper" class:fullscreen={displayMode === "fullscreen"}>
   <!-- Controls -->
   <div class="controls">
     <button
@@ -105,13 +77,6 @@ function toggleOverlays() {
       onclick={toggleOverlays}
     >
       {overlaysVisible ? "Hide Overlays" : "Show Overlays"}
-    </button>
-    <button
-      class="control-btn"
-      onclick={handleFetchAllText}
-      disabled={loading}
-    >
-      Fetch All Text
     </button>
     <button
       class="control-btn"
@@ -155,24 +120,6 @@ function toggleOverlays() {
     </svg>
   </div>
 
-  <!-- Stats -->
-  <div class="stats">
-    <div class="stats-row">
-      <span>Text lines detected:</span>
-      <strong>{documentData.totalLines}</strong>
-    </div>
-    <div class="stats-row">
-      <span>Dimensions:</span>
-      <strong>{documentData.pageWidth} x {documentData.pageHeight} px</strong>
-    </div>
-    {#if !documentData.imageUrl.startsWith("data:")}
-      <div class="stats-row">
-        <span>Image:</span>
-        <a href={documentData.imageUrl} target="_blank" rel="noreferrer">View original</a>
-      </div>
-    {/if}
-  </div>
-
   <!-- Status Message -->
   {#if status}
     <p class="status">{status}</p>
@@ -193,7 +140,12 @@ function toggleOverlays() {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md, 0.75rem);
+  min-height: 60vh;
+}
+
+.viewer-wrapper.fullscreen {
   min-height: 0;
+  height: 100%;
 }
 
 .controls {
@@ -239,14 +191,19 @@ function toggleOverlays() {
   background: var(--color-svg-background);
   border-radius: var(--border-radius-lg, 10px);
   border: 1px solid var(--color-border-primary);
-  overflow: auto;
-  min-height: 300px;
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .document-svg {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 /* Text Line Polygons */
@@ -283,40 +240,6 @@ function toggleOverlays() {
   max-width: 300px;
   word-wrap: break-word;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* Stats */
-.stats {
-  padding: var(--spacing-md, 0.75rem);
-  background: var(--color-background-secondary);
-  border-radius: var(--border-radius-lg, 10px);
-  border: 1px solid var(--color-border-primary);
-  font-size: var(--font-text-sm-size, 0.875rem);
-}
-
-.stats-row {
-  display: flex;
-  justify-content: space-between;
-  margin: 0.25rem 0;
-}
-
-.stats-row span {
-  color: var(--color-text-secondary);
-}
-
-.stats-row strong {
-  color: var(--color-text-primary);
-}
-
-.stats-row a {
-  color: var(--color-accent);
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-.stats-row a:hover {
-  color: var(--color-accent-dark);
-  text-decoration: underline;
 }
 
 /* Status */

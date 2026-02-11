@@ -1,4 +1,5 @@
 <script lang="ts">
+import { z } from "zod";
 import type { DocumentData } from "../lib/types";
 import { parseAltoXml, readFileAsDataUrl } from "../lib/alto-parser";
 import { getFilenameWithoutExtension, truncateText } from "../lib/utils";
@@ -9,6 +10,18 @@ interface Props {
 }
 
 let { onDocumentLoaded }: Props = $props();
+
+// Zod validation schema
+const uploadSchema = z.object({
+  altoFile: z.custom<File>(
+    (val) => val instanceof File && val.name.toLowerCase().endsWith(".xml"),
+    { message: "ALTO file must be an XML file" }
+  ),
+  imageFile: z.custom<File>(
+    (val) => val instanceof File && /\.(jpg|jpeg|png|tiff?|gif|webp)$/i.test(val.name),
+    { message: "Image must be a valid image file (jpg, png, tiff, gif, webp)" }
+  ),
+});
 
 // State
 let altoFile = $state<File | null>(null);
@@ -34,8 +47,10 @@ function handleImageFileChange(e: Event) {
 }
 
 async function handleUpload() {
-  if (!altoFile || !imageFile) {
-    error = "Please select both ALTO XML and image files";
+  // Validate with Zod
+  const validation = uploadSchema.safeParse({ altoFile, imageFile });
+  if (!validation.success) {
+    error = validation.error.issues[0].message;
     return;
   }
 
@@ -44,17 +59,17 @@ async function handleUpload() {
 
   try {
     // Parse ALTO XML
-    const altoText = await altoFile.text();
+    const altoText = await validation.data.altoFile.text();
     const altoData = parseAltoXml(altoText);
 
     // Read image as data URL
-    const imageDataUrl = await readFileAsDataUrl(imageFile);
+    const imageDataUrl = await readFileAsDataUrl(validation.data.imageFile);
 
     // Create document data and notify parent
     const documentData: DocumentData = {
-      imageId: getFilenameWithoutExtension(altoFile.name),
+      imageId: getFilenameWithoutExtension(validation.data.altoFile.name),
       imageUrl: imageDataUrl,
-      altoUrl: `local://${altoFile.name}`,
+      altoUrl: `local://${validation.data.altoFile.name}`,
       pageWidth: altoData.pageWidth,
       pageHeight: altoData.pageHeight,
       textLines: altoData.textLines,
@@ -124,6 +139,8 @@ async function handleUpload() {
   background: var(--color-background-secondary);
   border-radius: var(--border-radius-lg, 10px);
   border: 1px solid var(--color-border-primary);
+  max-width: 400px;
+  width: 100%;
 }
 
 .upload-state h2 {

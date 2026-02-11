@@ -18,6 +18,12 @@ import type { DocumentData } from "./lib/types";
 import { parseDocumentResult } from "./lib/utils";
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+const DEFAULT_INLINE_HEIGHT = 300; // Default height for empty/upload states
+
+// =============================================================================
 // State
 // =============================================================================
 
@@ -25,6 +31,10 @@ let app = $state<App | null>(null);
 let hostContext = $state<McpUiHostContext | undefined>();
 let documentData = $state<DocumentData | null>(null);
 let uploadMode = $state(false);
+let displayMode = $state<"inline" | "fullscreen">("inline");
+
+// Derived: whether we're showing a "card" state (empty, upload, error) vs viewer
+let isCardState = $derived(!documentData || documentData.error || uploadMode || !app);
 
 // =============================================================================
 // Effects
@@ -40,6 +50,19 @@ $effect(() => {
   if (hostContext?.styles?.css?.fonts) {
     applyHostFonts(hostContext.styles.css.fonts);
   }
+  if (hostContext?.displayMode) {
+    displayMode = hostContext.displayMode as "inline" | "fullscreen";
+  }
+});
+
+// Request size for non-viewer states (empty/upload)
+$effect(() => {
+  if (app && !documentData && displayMode !== "fullscreen") {
+    // Small delay to ensure component has rendered
+    setTimeout(() => {
+      app?.sendSizeChanged({ height: DEFAULT_INLINE_HEIGHT });
+    }, 50);
+  }
 });
 
 // =============================================================================
@@ -47,7 +70,11 @@ $effect(() => {
 // =============================================================================
 
 onMount(async () => {
-  const instance = new App({ name: "Riksarkivet Viewer", version: "1.0.0" });
+  const instance = new App(
+    { name: "Riksarkivet Viewer", version: "1.0.0" },
+    {},
+    { autoResize: false }
+  );
 
   instance.ontoolinput = (params) => {
     console.info("Received tool call input:", params);
@@ -101,6 +128,8 @@ function handleReset() {
 
 <main
   class="main"
+  class:fullscreen={displayMode === "fullscreen"}
+  class:card-state={isCardState}
   style:padding-top={hostContext?.safeAreaInsets?.top ? `${hostContext.safeAreaInsets.top}px` : undefined}
   style:padding-right={hostContext?.safeAreaInsets?.right ? `${hostContext.safeAreaInsets.right}px` : undefined}
   style:padding-bottom={hostContext?.safeAreaInsets?.bottom ? `${hostContext.safeAreaInsets.bottom}px` : undefined}
@@ -113,7 +142,7 @@ function handleReset() {
     <UploadView onDocumentLoaded={handleDocumentLoaded} />
 
   {:else if documentData && !documentData.error}
-    <DocumentViewer {app} {documentData} onReset={handleReset} />
+    <DocumentViewer {app} {documentData} {displayMode} onReset={handleReset} />
 
   {:else if documentData?.error}
     <div class="error-state">
@@ -130,24 +159,46 @@ function handleReset() {
 <style>
 .main {
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   padding: var(--spacing-sm, 0.5rem);
   display: flex;
   flex-direction: column;
+  background: var(--color-background-primary);
+  border-radius: var(--border-radius-lg, 10px);
+  border: 1px solid var(--color-border-primary);
+  overflow: hidden;
+}
+
+/* Center card states (empty, upload, error, loading) */
+.main.card-state {
+  justify-content: center;
+  align-items: center;
+}
+
+.main.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  border-radius: 0;
+  border: none;
+  overflow: hidden;
 }
 
 .loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 200px;
+  flex: 1;
   font-size: 1rem;
   color: var(--color-text-secondary);
 }
 
 .error-state {
   text-align: center;
-  padding: var(--spacing-lg, 2rem);
+  padding: var(--spacing-lg, 1.5rem);
   background: var(--color-background-secondary);
   border-radius: var(--border-radius-lg, 10px);
   border: 1px solid var(--color-border-primary);
@@ -155,7 +206,7 @@ function handleReset() {
 
 .error-state h2 {
   margin: 0 0 var(--spacing-sm, 0.5rem) 0;
-  font-size: var(--font-heading-lg-size, 1.25rem);
+  font-size: 1.25rem;
   color: var(--color-error);
 }
 
