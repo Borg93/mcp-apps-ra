@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY tsconfig.json vite.config.ts mcp-app.html ./
-COPY src ./src
+COPY ui ./ui
 RUN npm run build
 
 # Build Python dependencies
@@ -23,6 +23,7 @@ RUN addgroup -g 1000 mcp-app && adduser -u 1000 -G mcp-app -s /bin/sh -D mcp-app
 COPY --from=python-builder --chown=mcp-app:mcp-app /app/.venv /app/.venv
 COPY --from=frontend-builder --chown=mcp-app:mcp-app /app/dist /app/dist
 COPY --chown=mcp-app:mcp-app server.py ./
+COPY --chown=mcp-app:mcp-app src/ ./src/
 RUN chown -R mcp-app:mcp-app /app
 USER mcp-app
 EXPOSE 3001

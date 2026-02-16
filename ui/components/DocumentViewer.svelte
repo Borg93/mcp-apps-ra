@@ -25,17 +25,14 @@ async function handleLineClick(line: TextLine) {
   status = "Sending selected text...";
 
   try {
-    await app.callServerTool({
-      name: "text-line-selected",
-      arguments: {
-        line_id: line.id,
-        transcription: line.transcription,
-        document_id: documentData.imageId,
-        hpos: line.hpos,
-        vpos: line.vpos,
-        width: line.width,
-        height: line.height,
-      },
+    await app.sendMessage({
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: `[${documentData.imageId}] ${line.id}: ${line.transcription}`,
+        },
+      ],
     });
     status = "Text sent for translation";
   } catch (e) {

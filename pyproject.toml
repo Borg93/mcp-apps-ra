@@ -16,8 +16,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
-include = ["server.py", "dist/**"]
+packages = ["src"]
+include = ["server.py", "src/**", "dist/**"]
 
 [dependency-groups]
 dev = []
