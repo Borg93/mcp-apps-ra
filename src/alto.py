@@ -6,13 +6,33 @@ from src.models import AltoData, TextLine
 
 
 def fetch_alto_xml(image_id: str) -> str:
-    """Fetch ALTO XML from Riksarkivet."""
+    """Fetch ALTO XML from Riksarkivet by image ID."""
     document_id = image_id.split("_")[0]
     alto_url = f"https://lbiiif.riksarkivet.se/download/current/alto/{document_id}?format=xml&imageid={image_id}"
 
     response = httpx.get(alto_url, timeout=30.0)
     response.raise_for_status()
     return response.text
+
+
+def fetch_alto_xml_from_url(url: str) -> str:
+    """Fetch ALTO XML from an arbitrary URL."""
+    response = httpx.get(url, timeout=30.0)
+    response.raise_for_status()
+    return response.text
+
+
+def fetch_alto_for_page(image_id: str) -> list[TextLine]:
+    """Fetch and parse ALTO for a page, returning TextLine list.
+
+    Silently returns empty list on error (page may not have ALTO).
+    """
+    try:
+        xml = fetch_alto_xml(image_id)
+        data = parse_alto_xml(xml)
+        return data.text_lines
+    except (httpx.HTTPError, Exception):
+        return []
 
 
 def parse_alto_xml(xml_string: str) -> AltoData:

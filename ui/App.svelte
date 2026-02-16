@@ -9,19 +9,18 @@ import {
 } from "@modelcontextprotocol/ext-apps";
 
 // Components
-import UploadView from "./components/UploadView.svelte";
 import DocumentViewer from "./components/DocumentViewer.svelte";
 import EmptyState from "./components/EmptyState.svelte";
 
 // Types & Utils
-import type { DocumentData } from "./lib/types";
-import { parseDocumentResult } from "./lib/utils";
+import type { ViewerData } from "./lib/types";
+import { parseToolResult } from "./lib/utils";
 
 // =============================================================================
 // Constants
 // =============================================================================
 
-const DEFAULT_INLINE_HEIGHT = 300; // Default height for empty/upload states
+const DEFAULT_INLINE_HEIGHT = 300;
 
 // =============================================================================
 // State
@@ -29,12 +28,13 @@ const DEFAULT_INLINE_HEIGHT = 300; // Default height for empty/upload states
 
 let app = $state<App | null>(null);
 let hostContext = $state<McpUiHostContext | undefined>();
-let documentData = $state<DocumentData | null>(null);
-let uploadMode = $state(false);
+let viewerData = $state<ViewerData | null>(null);
 let displayMode = $state<"inline" | "fullscreen">("inline");
 
-// Derived: whether we're showing a "card" state (empty, upload, error) vs viewer
-let isCardState = $derived(!documentData || documentData.error || uploadMode || !app);
+// Derived: whether we're showing a "card" state (empty/error) vs viewer
+let hasError = $derived(viewerData && "error" in viewerData && viewerData.error);
+let hasPages = $derived(viewerData && "pages" in viewerData && viewerData.pages?.length > 0);
+let isCardState = $derived(!hasPages || hasError || !app);
 
 // =============================================================================
 // Effects
@@ -55,10 +55,9 @@ $effect(() => {
   }
 });
 
-// Request size for non-viewer states (empty/upload)
+// Request size for non-viewer states
 $effect(() => {
-  if (app && !documentData && displayMode !== "fullscreen") {
-    // Small delay to ensure component has rendered
+  if (app && isCardState && displayMode !== "fullscreen") {
     setTimeout(() => {
       app?.sendSizeChanged({ height: DEFAULT_INLINE_HEIGHT });
     }, 50);
@@ -82,15 +81,11 @@ onMount(async () => {
 
   instance.ontoolresult = (result) => {
     console.info("Received tool call result:", result);
-    const data = parseDocumentResult(result);
-    if (data) {
-      if (data.mode === "upload") {
-        uploadMode = true;
-        documentData = null;
-      } else if (!data.error) {
-        documentData = data;
-        uploadMode = false;
-      }
+    const data = parseToolResult(result);
+    if (data && !("error" in data && data.error)) {
+      viewerData = data;
+    } else if (data) {
+      viewerData = data;
     }
   };
 
@@ -110,20 +105,6 @@ onMount(async () => {
   app = instance;
   hostContext = instance.getHostContext();
 });
-
-// =============================================================================
-// Handlers
-// =============================================================================
-
-function handleDocumentLoaded(data: DocumentData) {
-  documentData = data;
-  uploadMode = false;
-}
-
-function handleReset() {
-  documentData = null;
-  uploadMode = true;
-}
 </script>
 
 <main
@@ -138,17 +119,13 @@ function handleReset() {
   {#if !app}
     <div class="loading">Connecting...</div>
 
-  {:else if uploadMode}
-    <UploadView onDocumentLoaded={handleDocumentLoaded} />
+  {:else if viewerData && hasPages && !hasError}
+    <DocumentViewer {app} data={viewerData} {displayMode} />
 
-  {:else if documentData && !documentData.error}
-    <DocumentViewer {app} {documentData} {displayMode} onReset={handleReset} />
-
-  {:else if documentData?.error}
+  {:else if hasError && viewerData}
     <div class="error-state">
       <h2>Error Loading Document</h2>
-      <p>{documentData.message}</p>
-      <p class="image-id">{documentData.imageId}</p>
+      <p>{"message" in viewerData ? viewerData.message : "Unknown error"}</p>
     </div>
 
   {:else}
@@ -169,7 +146,7 @@ function handleReset() {
   overflow: hidden;
 }
 
-/* Center card states (empty, upload, error, loading) */
+/* Center card states (empty, error, loading) */
 .main.card-state {
   justify-content: center;
   align-items: center;
@@ -212,11 +189,6 @@ function handleReset() {
 
 .error-state p {
   margin: var(--spacing-sm, 0.5rem) 0;
-  color: var(--color-text-secondary);
-}
-
-.image-id {
-  font-family: var(--font-mono);
   color: var(--color-text-secondary);
 }
 </style>

@@ -12,25 +12,28 @@ export interface TextLine {
   height: number;
 }
 
-export interface AltoData {
-  textLines: TextLine[];
+export interface PageData {
+  pageNumber: number;
+  imageService?: Record<string, unknown> | null;
+  imageUrl?: string | null;
   pageWidth: number;
   pageHeight: number;
-  fullText: string;
+  textLines: TextLine[];
+  label: string;
+}
+
+export interface ManifestData {
+  manifestUrl: string;
+  title: string;
+  totalPages: number;
+  pages: PageData[];
 }
 
 export interface DocumentData {
-  imageId: string;
-  imageUrl: string;
-  altoUrl: string;
-  pageWidth: number;
-  pageHeight: number;
-  textLines: TextLine[];
-  totalLines: number;
-  fullText: string;
+  totalPages: number;
+  pages: PageData[];
   error?: boolean;
   message?: string;
-  mode?: string;
 }
 
 export interface TooltipState {
@@ -38,3 +41,6 @@ export interface TooltipState {
   x: number;
   y: number;
 }
+
+/** Union type for tool results - both tools return pages */
+export type ViewerData = ManifestData | DocumentData;

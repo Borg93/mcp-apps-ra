@@ -6,11 +6,13 @@
   <h2>Riksarkivet Document Viewer</h2>
   <p>Waiting for document data...</p>
   <p class="hint">
-    Use the <code>view-document</code> tool with an image ID
+    Use <code>view-manifest</code> with a IIIF manifest URL
     <br />
-    (e.g., 'A0068523_00007')
+    for multi-page documents with page navigation.
     <br /><br />
-    Or use <code>upload-document</code> to upload your own files.
+    Or use <code>view-document</code> with image and ALTO URLs
+    <br />
+    for individual pages.
   </p>
 </div>
 
