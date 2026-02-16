@@ -6,7 +6,6 @@ Interactive document viewer for Swedish National Archives with ALTO XML visualiz
 
 import argparse
 import base64
-import json
 import os
 import re
 from dataclasses import dataclass
@@ -15,7 +14,7 @@ from typing import Annotated
 
 import httpx
 from fastmcp import FastMCP
-from fastmcp.server.apps import ToolUI
+from fastmcp.server.apps import AppConfig
 
 DIST_DIR = Path(__file__).parent / "dist"
 RESOURCE_URI = "ui://riksarkivet/mcp-app.html"
@@ -134,11 +133,11 @@ def parse_alto_xml(xml_string: str) -> AltoData:
 @mcp.tool(
     name="view-document",
     description="Display a document from Riksarkivet with interactive ALTO XML visualization. Provide image_id (e.g. 'A0068523_00007')",
-    ui=ToolUI(resource_uri=RESOURCE_URI),
+    app=AppConfig(resource_uri=RESOURCE_URI),
 )
 def view_document(
     image_id: Annotated[str, "Document image ID (e.g. 'A0068523_00007')"],
-) -> str:
+) -> dict:
     """View a document from Riksarkivet with interactive ALTO overlay."""
     document_id = image_id.split("_")[0]
     alto_url = f"https://lbiiif.riksarkivet.se/download/current/alto/{document_id}?format=xml&imageid={image_id}"
@@ -166,7 +165,7 @@ def view_document(
             for line in alto_data.text_lines
         ]
 
-        result = {
+        return {
             "imageId": image_id,
             "imageUrl": image_data_url,
             "altoUrl": alto_url,
@@ -178,31 +177,25 @@ def view_document(
             + ("..." if len(alto_data.full_text) > 800 else ""),
         }
 
-        return json.dumps(result)
-
     except httpx.HTTPError as e:
-        return json.dumps(
-            {
-                "error": True,
-                "imageId": image_id,
-                "message": f"Error loading document: {str(e)}",
-            }
-        )
+        return {
+            "error": True,
+            "imageId": image_id,
+            "message": f"Error loading document: {str(e)}",
+        }
 
 
 @mcp.tool(
     name="upload-document",
     description="Open the document viewer with upload functionality. User can upload ALTO XML and image files directly in the interface.",
-    ui=ToolUI(resource_uri=RESOURCE_URI),
+    app=AppConfig(resource_uri=RESOURCE_URI),
 )
-def upload_document() -> str:
+def upload_document() -> dict:
     """Open the document viewer with upload functionality."""
-    return json.dumps(
-        {
-            "mode": "upload",
-            "message": "Upload ALTO XML file and image file to view the document.",
-        }
-    )
+    return {
+        "mode": "upload",
+        "message": "Upload ALTO XML file and image file to view the document.",
+    }
 
 
 @mcp.tool(
@@ -266,11 +259,13 @@ def main():
     if args.stdio:
         mcp.run(transport="stdio")
     else:
-        mcp.settings.host = "0.0.0.0"
-        mcp.settings.port = args.port
-        mcp.settings.streamable_http_path = "/mcp"
-        print(f"MCP Demo Server listening on http://localhost:{args.port}/mcp")
-        mcp.run(transport="streamable-http")
+        print(f"MCP Server listening on http://localhost:{args.port}/mcp")
+        mcp.run(
+            transport="streamable-http",
+            host="0.0.0.0",
+            port=args.port,
+            path="/mcp",
+        )
 
 
 if __name__ == "__main__":
