@@ -9,10 +9,10 @@
     "dev": "cross-env NODE_ENV=development cross-env INPUT=mcp-app.html vite build --watch"
   },
   "dependencies": {
-    "@annotorious/openseadragon": "^3.7.20",
     "@modelcontextprotocol/ext-apps": "^1.0.0",
     "@tailwindcss/vite": "^4.1.18",
     "bits-ui": "^2.15.5",
+    "konva": "^10.2.0",
     "openseadragon": "^5.0.1",
     "svelte": "^5.0.0",
     "tailwindcss": "^4.1.18",
