@@ -29,6 +29,11 @@ export interface PageUrl {
   alto: string;
 }
 
+export interface ThumbnailData {
+  index: number;
+  dataUrl: string;
+}
+
 /** Initial payload from view-document tool */
 export interface ViewerData {
   pageUrls: PageUrl[];

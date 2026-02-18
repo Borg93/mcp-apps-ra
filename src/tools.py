@@ -1,17 +1,26 @@
 """
 Document Viewer MCP App — Tools
 
-Two tools:
+Tools:
   - view-document: entry point, fetches first page, returns URL list for pagination
   - load-page: fetches a single page on demand (called by View via callServerTool)
+  - load-thumbnails: batch-fetches thumbnail images (called by View via callServerTool)
+
+Images are base64-encoded and sent through MCP because the image URLs can be
+from any domain (unknown at CSP registration time). The lru_cache on fetch
+helpers avoids re-downloading the same URL from the remote server.
 """
 
 import base64
+import io
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
 import httpx
+from PIL import Image
 from fastmcp.server.apps import AppConfig
 from fastmcp.tools import ToolResult
 from mcp import types
@@ -28,8 +37,9 @@ DIST_DIR = Path(__file__).parent.parent / "dist"
 RESOURCE_URI = "ui://document-viewer/mcp-app.html"
 
 
+@lru_cache(maxsize=32)
 def _fetch_image_as_data_url(url: str) -> str:
-    """Fetch image and return as base64 data URL."""
+    """Fetch image and return as base64 data URL. Cached by URL."""
     logger.info(f"Fetching image: {url}")
     resp = httpx.get(url, timeout=60.0, follow_redirects=True)
     resp.raise_for_status()
@@ -39,8 +49,28 @@ def _fetch_image_as_data_url(url: str) -> str:
     return f"data:{content_type};base64,{b64}"
 
 
+@lru_cache(maxsize=128)
+def _fetch_image_as_thumbnail_data_url(url: str, max_width: int = 150) -> str:
+    """Fetch image, resize to thumbnail with Pillow, return as base64 data URL. Cached by URL."""
+    logger.info(f"Fetching thumbnail: {url}")
+    resp = httpx.get(url, timeout=60.0, follow_redirects=True)
+    resp.raise_for_status()
+    img = Image.open(io.BytesIO(resp.content))
+    ratio = max_width / img.width
+    new_height = int(img.height * ratio)
+    img = img.resize((max_width, new_height), Image.LANCZOS)
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=75)
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    logger.info(f"Thumbnail generated: {max_width}x{new_height}, {len(buf.getvalue())} bytes")
+    return f"data:image/jpeg;base64,{b64}"
+
+
+@lru_cache(maxsize=32)
 def _fetch_and_parse_alto(url: str) -> dict:
-    """Fetch ALTO XML and parse into structured text line data."""
+    """Fetch ALTO XML and parse into structured text line data. Cached by URL."""
     logger.info(f"Fetching ALTO: {url}")
     xml = fetch_alto_xml_from_url(url)
     data = parse_alto_xml(xml)
@@ -134,7 +164,7 @@ def view_document(
 @mcp.tool(
     name="load-page",
     description="Load a single document page (image + ALTO). Used by the viewer for pagination.",
-    app=AppConfig(resource_uri=RESOURCE_URI),
+    app=AppConfig(resource_uri=RESOURCE_URI, visibility=["app"]),
 )
 def load_page(
     image_url: Annotated[str, "Image URL for the page."],
@@ -153,6 +183,54 @@ def load_page(
     return ToolResult(
         content=[types.TextContent(type="text", text=summary)],
         structured_content={"page": page},
+    )
+
+
+@mcp.tool(
+    name="load-thumbnails",
+    description="Load thumbnail images for a batch of document pages. Used by the viewer for lazy-loading the thumbnail strip.",
+    app=AppConfig(resource_uri=RESOURCE_URI, visibility=["app"]),
+)
+def load_thumbnails(
+    image_urls: Annotated[list[str], "Image URLs for the pages to thumbnail."],
+    page_indices: Annotated[list[int], "Zero-based page indices corresponding to image_urls."],
+) -> ToolResult:
+    """Fetch and resize a batch of page images into thumbnails (parallel)."""
+    thumbnails: list[dict] = []
+    errors: list[str] = []
+
+    def _fetch_one(url: str, idx: int) -> dict | None:
+        try:
+            data_url = _fetch_image_as_thumbnail_data_url(url)
+            return {"index": idx, "dataUrl": data_url}
+        except Exception as e:
+            logger.error(f"Thumbnail failed for page {idx}: {e}")
+            return None
+
+    with ThreadPoolExecutor(max_workers=min(len(image_urls), 4)) as pool:
+        futures = {
+            pool.submit(_fetch_one, url, idx): idx
+            for url, idx in zip(image_urls, page_indices)
+        }
+        for future in futures:
+            result = future.result()
+            if result:
+                thumbnails.append(result)
+            else:
+                idx = futures[future]
+                errors.append(f"Page {idx + 1}: failed")
+
+    # Sort by index so they arrive in order
+    thumbnails.sort(key=lambda t: t["index"])
+
+    summary = f"Generated {len(thumbnails)} thumbnails."
+    if errors:
+        summary += f" Errors: {'; '.join(errors)}"
+
+    logger.info(f"load-thumbnails: {summary}")
+    return ToolResult(
+        content=[types.TextContent(type="text", text=summary)],
+        structured_content={"thumbnails": thumbnails},
     )
 
 

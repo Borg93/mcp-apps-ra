@@ -2,10 +2,11 @@
 name = "riksarkivet-viewer"
 version = "0.1.0"
 description = "Riksarkivet Document Viewer - Interactive ALTO XML visualization"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "httpx>=0.28.0",
     "fastmcp>=3.0.0rc2",
+    "pillow>=12.1.1",
 ]
 
 [project.scripts]

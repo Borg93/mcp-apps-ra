@@ -3,7 +3,7 @@
  */
 
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { ViewerData, PageData } from "./types";
+import type { ViewerData, PageData, ThumbnailData } from "./types";
 
 /**
  * Parse initial tool result (view-document) into ViewerData.
@@ -25,4 +25,15 @@ export function parsePageResult(result: CallToolResult): PageData | null {
     return sc.page as PageData;
   }
   return null;
+}
+
+/**
+ * Parse load-thumbnails tool result into ThumbnailData array.
+ */
+export function parseThumbnailResult(result: CallToolResult): ThumbnailData[] {
+  const sc = (result as any).structuredContent;
+  if (sc && typeof sc === "object" && "thumbnails" in sc) {
+    return sc.thumbnails as ThumbnailData[];
+  }
+  return [];
 }
