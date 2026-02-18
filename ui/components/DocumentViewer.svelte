@@ -277,8 +277,6 @@ function handleWheel(e: WheelEvent) {
   let delta = -e.deltaY;
   if (e.deltaMode === 1) delta *= 20; // line mode → approximate pixels
 
-  // Gentle zoom speed — small multiplier so trackpad feels smooth
-  const ZOOM_SPEED = 0.003;
   const factor = Math.exp(delta * ZOOM_SPEED);
 
   targetScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, targetScale * factor));
@@ -411,11 +409,8 @@ function prefetchAdjacentPages(index: number) {
 async function updatePageContext() {
   if (!app) return;
   const page = currentPageIndex + 1;
-  const lineCount = currentAlto?.textLines?.length ?? 0;
-  const sampleLines = currentAlto?.textLines
-    ?.slice(0, 5)
-    .map(l => l.transcription)
-    .join("\n") ?? "";
+  const lines = currentAlto?.textLines ?? [];
+  const fullText = lines.map(l => l.transcription).join("\n");
 
   try {
     await app.updateModelContext({
@@ -423,9 +418,10 @@ async function updatePageContext() {
         type: "text",
         text: [
           `Document viewer: page ${page}/${totalPages}`,
-          lineCount > 0 ? `${lineCount} transcribed text lines.` : "No transcribed text.",
-          sampleLines ? `First lines:\n${sampleLines}` : "",
-        ].filter(Boolean).join("\n"),
+          fullText
+            ? `Full page transcription:\n${fullText}`
+            : "(no transcribed text on this page)",
+        ].join("\n"),
       }],
     });
   } catch (e) {
@@ -437,7 +433,7 @@ async function sendLineText(line: TextLine) {
   try {
     await app.sendMessage({
       role: "user",
-      content: [{ type: "text", text: `Selected text from page ${currentPageIndex + 1}/${totalPages}:\n"${line.transcription}"` }],
+      content: [{ type: "text", text: `I selected this text on page ${currentPageIndex + 1}: "${line.transcription}"\nPlease translate or explain this text in context of the full page.` }],
     });
   } catch (e) {
     console.error("sendLineText failed:", e);

@@ -12,12 +12,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Annotated
 
-from fastmcp.server.apps import AppConfig
+from fastmcp import Context
+from fastmcp.server.apps import AppConfig, UI_EXTENSION_ID
 from fastmcp.tools import ToolResult
 from mcp import types
 
 from src import mcp
-from src.fetchers import build_page_data, fetch_thumbnail_as_data_url
+from src.fetchers import build_page_data, fetch_and_parse_alto, fetch_thumbnail_as_data_url
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -37,9 +38,10 @@ RESOURCE_URI = "ui://document-viewer/mcp-app.html"
     ),
     app=AppConfig(resource_uri=RESOURCE_URI),
 )
-def view_document(
+async def view_document(
     image_urls: Annotated[list[str], "List of image URLs (one per page)."],
     alto_urls: Annotated[list[str], "List of ALTO XML URLs (one per page, paired with image_urls)."],
+    ctx: Context,
 ) -> ToolResult:
     """View document pages with zoomable images and ALTO overlays."""
     if len(image_urls) != len(alto_urls):
@@ -50,19 +52,38 @@ def view_document(
             )],
         )
 
+    has_ui = ctx.client_supports_extension(UI_EXTENSION_ID)
+
+    # Build model-visible transcription of first page
+    first_alto = fetch_and_parse_alto(alto_urls[0])
+    text_lines = first_alto.get("textLines", [])
+    transcription = "\n".join(line["transcription"] for line in text_lines)
+
+    summary_parts = [f"Displaying {len(image_urls)}-page document. Page 1 transcription:"]
+    if transcription:
+        summary_parts.append(transcription)
+    else:
+        summary_parts.append("(no transcribed text on this page)")
+    summary = "\n".join(summary_parts)
+
+    # Plain-text fallback for hosts without UI support
+    if not has_ui:
+        logger.info(f"view-document (text fallback): {len(image_urls)} pages")
+        return ToolResult(
+            content=[types.TextContent(type="text", text=summary)],
+        )
+
+    # Full UI path: fetch image + ALTO for first page
     page_urls = [
         {"image": img_url, "alto": alto_url}
         for img_url, alto_url in zip(image_urls, alto_urls)
     ]
-
     first_page, errors = build_page_data(0, image_urls[0], alto_urls[0])
 
-    total_lines = len(first_page.get("alto", {}).get("textLines", []))
-    summary = f"Loaded page 1 of {len(page_urls)} with {total_lines} text lines."
     if errors:
-        summary += f" Errors: {'; '.join(errors)}"
+        summary += f"\nErrors: {'; '.join(errors)}"
 
-    logger.info(f"view-document: {summary}")
+    logger.info(f"view-document: {len(page_urls)} pages, {len(text_lines)} lines on page 1")
     return ToolResult(
         content=[types.TextContent(type="text", text=summary)],
         structured_content={
