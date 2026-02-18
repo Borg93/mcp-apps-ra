@@ -33,8 +33,8 @@ let displayMode = $state<"inline" | "fullscreen">("inline");
 
 // Derived: whether we're showing a "card" state (empty/error) vs viewer
 let hasError = $derived(viewerData && "error" in viewerData && viewerData.error);
-let hasPages = $derived(viewerData && "pages" in viewerData && viewerData.pages?.length > 0);
-let isCardState = $derived(!hasPages || hasError || !app);
+let hasData = $derived(viewerData && "imageUrls" in viewerData && viewerData.imageUrls?.length > 0);
+let isCardState = $derived(!hasData || hasError || !app);
 
 // =============================================================================
 // Effects
@@ -55,13 +55,13 @@ $effect(() => {
   }
 });
 
-// Request size for non-viewer states
+// Request size based on state
 $effect(() => {
-  if (app && isCardState && displayMode !== "fullscreen") {
-    setTimeout(() => {
-      app?.sendSizeChanged({ height: DEFAULT_INLINE_HEIGHT });
-    }, 50);
-  }
+  if (!app || displayMode === "fullscreen") return;
+  const height = isCardState ? DEFAULT_INLINE_HEIGHT : 600;
+  setTimeout(() => {
+    app?.sendSizeChanged({ height });
+  }, 50);
 });
 
 // =============================================================================
@@ -119,7 +119,7 @@ onMount(async () => {
   {#if !app}
     <div class="loading">Connecting...</div>
 
-  {:else if viewerData && hasPages && !hasError}
+  {:else if viewerData && hasData && !hasError}
     <DocumentViewer {app} data={viewerData} {displayMode} />
 
   {:else if hasError && viewerData}

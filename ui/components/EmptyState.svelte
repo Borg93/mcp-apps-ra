@@ -6,13 +6,9 @@
   <h2>Riksarkivet Document Viewer</h2>
   <p>Waiting for document data...</p>
   <p class="hint">
-    Use <code>view-manifest</code> with a IIIF manifest URL
+    Use <code>view-document</code> with paired image and ALTO XML URLs
     <br />
-    for multi-page documents with page navigation.
-    <br /><br />
-    Or use <code>view-document</code> with image and ALTO URLs
-    <br />
-    for individual pages.
+    to view document pages with zoomable images and text overlays.
   </p>
 </div>
 

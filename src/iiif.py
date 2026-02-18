@@ -1,6 +1,10 @@
 """IIIF manifest and image service utilities."""
 
+import logging
+
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 def fetch_iiif_info(image_url: str) -> dict | None:
@@ -13,14 +17,21 @@ def fetch_iiif_info(image_url: str) -> dict | None:
     # e.g. https://lbiiif.riksarkivet.se/arkis!A0068523_00007/full/1000,/0/default.jpg
     #   -> https://lbiiif.riksarkivet.se/arkis!A0068523_00007/info.json
     info_url = _derive_info_url(image_url)
+    logger.info(f"fetch_iiif_info: image_url={image_url} -> info_url={info_url}")
     if not info_url:
+        logger.warning(f"fetch_iiif_info: could not derive info.json URL")
         return None
 
     try:
         resp = httpx.get(info_url, timeout=15.0)
+        logger.info(f"fetch_iiif_info: status={resp.status_code}")
         resp.raise_for_status()
-        return resp.json()
-    except (httpx.HTTPError, ValueError):
+        data = resp.json()
+        logger.info(f"fetch_iiif_info: got IIIF info, id={data.get('id') or data.get('@id', 'N/A')}, "
+                     f"width={data.get('width')}, height={data.get('height')}")
+        return data
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning(f"fetch_iiif_info: failed with {type(e).__name__}: {e}")
         return None
 
 

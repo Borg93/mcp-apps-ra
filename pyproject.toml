@@ -5,7 +5,7 @@ description = "Riksarkivet Document Viewer - Interactive ALTO XML visualization"
 requires-python = ">=3.14"
 dependencies = [
     "httpx>=0.28.0",
-    "fastmcp>=3.0.0rc1",
+    "fastmcp>=3.0.0rc2",
 ]
 
 [project.scripts]

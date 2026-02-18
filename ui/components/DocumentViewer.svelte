@@ -4,8 +4,7 @@ import OpenSeadragon from "openseadragon";
 import Konva from "konva";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
-import type { PageData, TextLine, TooltipState, ViewerData } from "../lib/types";
-import { isManifestData } from "../lib/utils";
+import type { TextLine, TooltipState, ViewerData, PageAltoData, ImageChunk } from "../lib/types";
 
 interface Props {
   app: App;
@@ -15,18 +14,22 @@ interface Props {
 
 let { app, data, displayMode = "inline" }: Props = $props();
 
+const CHUNK_SIZE = 512 * 1024;
+
 // State
 let overlaysVisible = $state(true);
 let currentPageIndex = $state(0);
 let tooltip = $state<TooltipState | null>(null);
 let highlightedLineId = $state<string | null>(null);
 let status = $state("");
+let pageStatus = $state("");
 let osdContainer: HTMLDivElement;
 
 // Derived
-let pages = $derived(data.pages);
-let currentPage = $derived(pages[currentPageIndex]);
-let title = $derived(isManifestData(data) ? data.title : undefined);
+let totalPages = $derived(data.imageUrls.length);
+
+// Current page data (loaded on demand via callServerTool)
+let currentAlto = $state<PageAltoData | null>(null);
 
 // OSD + Konva instances
 let viewer: OpenSeadragon.Viewer | null = null;
@@ -40,7 +43,7 @@ let shapeMap = new Map<string, Konva.Line>();
 // Parsed polygon data for hit testing (image coordinates)
 let currentPolygons: { lineId: string; points: number[]; line: TextLine }[] = [];
 
-// Drag detection to distinguish clicks from pans
+// Drag detection
 let mouseDownPos: { x: number; y: number } | null = null;
 
 // rAF-throttled sync flag
@@ -48,17 +51,96 @@ let syncRequested = false;
 
 // Cleanup handles
 let resizeObserver: ResizeObserver | null = null;
+let blobUrls: string[] = [];
+
+// ---------------------------------------------------------------------------
+// Data Loading — server fetches everything, app receives data
+// ---------------------------------------------------------------------------
+
+/**
+ * Load image bytes from the server in chunks (like PDF server's read_pdf_bytes).
+ * Returns a local blob URL that OSD can render directly.
+ */
+async function loadImageBytes(imageUrl: string): Promise<string> {
+  const chunks: Uint8Array[] = [];
+  let offset = 0;
+  let hasMore = true;
+  let totalBytes = 0;
+
+  pageStatus = "Loading image...";
+
+  while (hasMore) {
+    const result = await app.callServerTool({
+      name: "read-image-bytes",
+      arguments: { url: imageUrl, offset, byte_count: CHUNK_SIZE },
+    });
+
+    if (result.isError) {
+      const msg = result.content?.map((c: any) => ("text" in c ? c.text : "")).join(" ");
+      throw new Error(msg || "Failed to load image");
+    }
+
+    const sc = (result as any).structuredContent as ImageChunk | undefined;
+    if (!sc) throw new Error("No structuredContent in image response");
+
+    totalBytes = sc.totalBytes;
+    hasMore = sc.hasMore;
+
+    // Decode base64 chunk
+    const binaryString = atob(sc.bytes);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    chunks.push(bytes);
+
+    offset += sc.byteCount;
+    const pct = Math.round((offset / totalBytes) * 100);
+    pageStatus = `Loading image... ${pct}%`;
+  }
+
+  // Assemble chunks into a blob URL
+  const fullData = new Uint8Array(totalBytes);
+  let pos = 0;
+  for (const chunk of chunks) {
+    fullData.set(chunk, pos);
+    pos += chunk.length;
+  }
+
+  const blob = new Blob([fullData], { type: "image/jpeg" });
+  const blobUrl = URL.createObjectURL(blob);
+  blobUrls.push(blobUrl);
+  console.log(`[Image] Loaded ${totalBytes} bytes in ${chunks.length} chunk(s)`);
+  return blobUrl;
+}
+
+/**
+ * Load and parse ALTO XML via the server (like PDF server's chunked loading).
+ * Server fetches the XML, parses it, returns structured text line data.
+ */
+async function loadAlto(altoUrl: string): Promise<PageAltoData> {
+  pageStatus = "Loading text overlay...";
+
+  const result = await app.callServerTool({
+    name: "read-alto",
+    arguments: { url: altoUrl },
+  });
+
+  if (result.isError) {
+    const msg = result.content?.map((c: any) => ("text" in c ? c.text : "")).join(" ");
+    throw new Error(msg || "Failed to load ALTO");
+  }
+
+  const sc = (result as any).structuredContent as PageAltoData | undefined;
+  if (!sc) throw new Error("No structuredContent in ALTO response");
+
+  console.log(`[ALTO] ${sc.textLines.length} text lines, ${sc.pageWidth}x${sc.pageHeight}`);
+  return sc;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function getTileSource(page: PageData): object {
-  if (page.imageService) {
-    return page.imageService as object;
-  }
-  return { type: "image", url: page.imageUrl, buildPyramid: false };
-}
 
 /** Parse ALTO polygon "x1,y1 x2,y2 ..." → flat [x1,y1,x2,y2,...] */
 function parsePolygonPoints(polygon: string): number[] {
@@ -99,7 +181,7 @@ function clientToImageCoord(clientX: number, clientY: number): OpenSeadragon.Poi
 }
 
 // ---------------------------------------------------------------------------
-// Konva ↔ OSD sync  (adapted from openseadragon-konva-layer)
+// Konva ↔ OSD sync
 // ---------------------------------------------------------------------------
 
 function requestSync() {
@@ -143,14 +225,16 @@ function syncKonva() {
 // Overlay management
 // ---------------------------------------------------------------------------
 
-function createKonvaOverlay(page: PageData) {
+function createKonvaOverlay(alto: PageAltoData) {
   if (!layer) return;
+
+  console.log(`[Konva] Creating overlay: ${alto.textLines.length} text lines`);
 
   layer.destroyChildren();
   shapeMap.clear();
   currentPolygons = [];
 
-  for (const line of page.textLines) {
+  for (const line of alto.textLines) {
     const points = parsePolygonPoints(line.polygon);
     if (points.length < 6) continue;
 
@@ -205,23 +289,53 @@ function highlightShape(lineId: string | null) {
 }
 
 // ---------------------------------------------------------------------------
-// Page navigation
+// Page loading
 // ---------------------------------------------------------------------------
 
-function loadPage(page: PageData) {
+async function loadPage(pageIndex: number) {
   if (!viewer) return;
-  viewer.open(getTileSource(page) as OpenSeadragon.TileSourceOptions);
-  const handler = () => {
-    createKonvaOverlay(page);
-    viewer?.removeHandler("open", handler);
-  };
-  viewer.addHandler("open", handler);
+
+  currentAlto = null;
+  currentPolygons = [];
+  if (layer) {
+    layer.destroyChildren();
+    shapeMap.clear();
+    layer.draw();
+  }
+
+  try {
+    // 1. Load image bytes from server → blob URL
+    const blobUrl = await loadImageBytes(data.imageUrls[pageIndex]);
+
+    // 2. Open blob URL in OSD (no network requests — local data)
+    viewer.open({ type: "image", url: blobUrl, buildPyramid: false } as any);
+
+    // 3. After OSD opens, load ALTO from server
+    const onOpen = async () => {
+      viewer?.removeHandler("open", onOpen);
+      try {
+        const alto = await loadAlto(data.altoUrls[pageIndex]);
+        currentAlto = alto;
+        createKonvaOverlay(alto);
+        pageStatus = `${alto.textLines.length} text lines`;
+        setTimeout(() => (pageStatus = ""), 3000);
+      } catch (e) {
+        console.error("[ALTO] Failed:", e);
+        currentAlto = { textLines: [], pageWidth: 0, pageHeight: 0 };
+        pageStatus = "Text overlay unavailable";
+      }
+    };
+    viewer.addHandler("open", onOpen);
+  } catch (e) {
+    console.error("[loadPage] Failed:", e);
+    pageStatus = `Error: ${e instanceof Error ? e.message : String(e)}`;
+  }
 }
 
 function goToPage(index: number) {
-  if (index < 0 || index >= pages.length) return;
+  if (index < 0 || index >= totalPages) return;
   currentPageIndex = index;
-  loadPage(pages[index]);
+  loadPage(index);
 }
 
 function toggleOverlays() {
@@ -230,7 +344,7 @@ function toggleOverlays() {
 }
 
 // ---------------------------------------------------------------------------
-// Mouse interaction  (listeners on viewer.container, Konva canvas is pointer-events:none)
+// Mouse interaction (on OSD container, Konva canvas is pointer-events:none)
 // ---------------------------------------------------------------------------
 
 function handleMouseDown(e: MouseEvent) {
@@ -238,7 +352,7 @@ function handleMouseDown(e: MouseEvent) {
 }
 
 function handleMouseMove(e: MouseEvent) {
-  if (!overlaysVisible) {
+  if (!overlaysVisible || !currentAlto?.textLines.length) {
     if (tooltip) { tooltip = null; highlightShape(null); }
     return;
   }
@@ -249,15 +363,15 @@ function handleMouseMove(e: MouseEvent) {
   if (hit) {
     tooltip = { text: hit.line.transcription, x: e.clientX + 15, y: e.clientY + 15 };
     if (highlightedLineId !== hit.lineId) highlightShape(hit.lineId);
-    viewer!.canvas.style.cursor = "pointer";
+    if (viewer) viewer.canvas.style.cursor = "pointer";
   } else {
     if (tooltip) { tooltip = null; highlightShape(null); }
-    viewer!.canvas.style.cursor = "";
+    if (viewer) viewer.canvas.style.cursor = "";
   }
 }
 
 function handleClick(e: MouseEvent) {
-  if (!overlaysVisible) return;
+  if (!overlaysVisible || !currentAlto?.textLines.length) return;
   if (mouseDownPos) {
     const dx = e.clientX - mouseDownPos.x;
     const dy = e.clientY - mouseDownPos.y;
@@ -281,7 +395,7 @@ async function sendLineText(line: TextLine) {
   try {
     await app.sendMessage({
       role: "user",
-      content: [{ type: "text", text: `[Page ${currentPage.pageNumber}] ${line.id}: ${line.transcription}` }],
+      content: [{ type: "text", text: `[Page ${currentPageIndex + 1}] ${line.id}: ${line.transcription}` }],
     });
     status = "Text sent for translation";
   } catch (e) {
@@ -297,13 +411,14 @@ async function sendLineText(line: TextLine) {
 // ---------------------------------------------------------------------------
 
 onMount(() => {
+  console.log("[DocumentViewer] onMount:", data.imageUrls.length, "pages");
+
+  // Initialize OSD (empty — no tile source yet, loadPage will open one)
   viewer = new OpenSeadragon.Viewer({
     element: osdContainer,
     showNavigationControl: false,
     gestureSettingsMouse: { clickToZoom: false },
-    crossOriginPolicy: "Anonymous",
     prefixUrl: "",
-    tileSources: getTileSource(pages[0]) as OpenSeadragon.TileSourceOptions,
     maxZoomPixelRatio: 4,
     minZoomLevel: 0.5,
     visibilityRatio: 0.5,
@@ -336,8 +451,9 @@ onMount(() => {
   viewer.addHandler("open", syncKonva);
   viewer.addHandler("resize", syncKonva);
 
-  // Overlay on first open
-  viewer.addOnceHandler("open", () => createKonvaOverlay(pages[0]));
+  // OSD lifecycle logging
+  viewer.addHandler("open", () => console.log("[OSD] 'open' event — image loaded"));
+  viewer.addHandler("open-failed", (event: any) => console.error("[OSD] 'open-failed':", event));
 
   // Container resize
   resizeObserver = new ResizeObserver(() => syncKonva());
@@ -349,6 +465,9 @@ onMount(() => {
   el.addEventListener("mousemove", handleMouseMove);
   el.addEventListener("click", handleClick);
   el.addEventListener("mouseleave", handleMouseLeave);
+
+  // Load first page
+  loadPage(0);
 });
 
 onDestroy(() => {
@@ -361,33 +480,38 @@ onDestroy(() => {
   stage?.destroy();
   konvaDiv?.remove();
   viewer?.destroy();
+
+  // Clean up blob URLs
+  for (const url of blobUrls) {
+    URL.revokeObjectURL(url);
+  }
 });
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="viewer-wrapper" class:fullscreen={displayMode === "fullscreen"}>
-  <!-- Header -->
+  <!-- Controls -->
   <div class="controls">
-    {#if title}
-      <span class="title">{title}</span>
-    {/if}
-
     <button class="control-btn" class:active={overlaysVisible} onclick={toggleOverlays}>
       {overlaysVisible ? "Hide Overlays" : "Show Overlays"}
     </button>
 
-    {#if pages.length > 1}
+    {#if totalPages > 1}
       <div class="page-nav">
         <button class="control-btn" onclick={() => goToPage(currentPageIndex - 1)} disabled={currentPageIndex === 0}>
           Prev
         </button>
         <span class="page-indicator">
-          {currentPage.label} ({currentPageIndex + 1} / {pages.length})
+          Page {currentPageIndex + 1} / {totalPages}
         </span>
-        <button class="control-btn" onclick={() => goToPage(currentPageIndex + 1)} disabled={currentPageIndex === pages.length - 1}>
+        <button class="control-btn" onclick={() => goToPage(currentPageIndex + 1)} disabled={currentPageIndex === totalPages - 1}>
           Next
         </button>
       </div>
+    {/if}
+
+    {#if pageStatus}
+      <span class="page-status">{pageStatus}</span>
     {/if}
   </div>
 
@@ -427,16 +551,6 @@ onDestroy(() => {
   align-items: center;
   flex-wrap: wrap;
 }
-.title {
-  font-size: var(--font-text-sm-size, 0.875rem);
-  font-weight: 500;
-  color: var(--color-text-primary);
-  margin-right: auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 300px;
-}
 .page-nav {
   display: flex;
   align-items: center;
@@ -448,6 +562,11 @@ onDestroy(() => {
   white-space: nowrap;
   min-width: 80px;
   text-align: center;
+}
+.page-status {
+  font-size: var(--font-text-sm-size, 0.875rem);
+  color: var(--color-text-secondary);
+  margin-left: auto;
 }
 
 /* Buttons */
@@ -480,7 +599,7 @@ onDestroy(() => {
 .osd-container {
   width: 100%;
   flex: 1;
-  background: var(--color-svg-background);
+  background: var(--color-background-secondary, #f5f5f5);
   border-radius: var(--border-radius-lg, 10px);
   border: 1px solid var(--color-border-primary);
   overflow: hidden;
@@ -491,8 +610,8 @@ onDestroy(() => {
 /* Tooltip */
 .tooltip {
   position: fixed;
-  background: var(--color-tooltip-background);
-  color: var(--color-tooltip-text);
+  background: var(--color-tooltip-background, #333);
+  color: var(--color-tooltip-text, #fff);
   padding: var(--spacing-sm, 0.5rem) var(--spacing-md, 0.75rem);
   border-radius: var(--border-radius-md, 6px);
   font-size: var(--font-text-sm-size, 0.875rem);

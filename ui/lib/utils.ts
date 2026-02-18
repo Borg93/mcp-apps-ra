@@ -6,28 +6,28 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { ViewerData } from "./types";
 
 /**
- * Parse tool result from MCP server into ViewerData.
- * Handles both manifest and document result shapes.
+ * Parse tool result into ViewerData.
+ * Tries structuredContent first (PDF pattern), falls back to content text.
  */
 export function parseToolResult(result: CallToolResult): ViewerData | null {
+  // Try structuredContent first (matches PDF server pattern)
+  const sc = (result as any).structuredContent;
+  if (sc && typeof sc === "object" && "imageUrls" in sc) {
+    return sc as ViewerData;
+  }
+
+  // Fallback: parse from content text
   const textContent = result.content?.find((c) => c.type === "text");
   if (textContent && "text" in textContent) {
     try {
       return JSON.parse(textContent.text) as ViewerData;
-    } catch {
+    } catch (e) {
+      console.error("[parseToolResult] JSON.parse failed:", e);
       return null;
     }
   }
-  return null;
-}
 
-/**
- * Check if a ViewerData result is a manifest (has manifestUrl).
- */
-export function isManifestData(
-  data: ViewerData,
-): data is import("./types").ManifestData {
-  return "manifestUrl" in data;
+  return null;
 }
 
 /**
