@@ -108,6 +108,7 @@ function handlePointerLeave() {
 // ---------------------------------------------------------------------------
 
 let contextTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSentContext = "";
 
 function scheduleContextUpdate(selectedLine?: TextLine) {
   if (contextTimer) clearTimeout(contextTimer);
@@ -130,9 +131,13 @@ async function sendContextUpdate(selectedLine?: TextLine) {
   if (selectedLine) parts.push(`User selected text: "${selectedLine.transcription}"`);
   parts.push(fullText ? `Full page transcription:\n${fullText}` : "(no transcribed text on this page)");
 
+  const text = parts.join("\n");
+  if (text === lastSentContext) return;
+  lastSentContext = text;
+
   try {
     await app.updateModelContext({
-      content: [{ type: "text", text: parts.join("\n") }],
+      content: [{ type: "text", text }],
     });
   } catch (e) {
     console.error("[updateModelContext]", e);
