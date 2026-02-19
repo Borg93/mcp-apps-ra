@@ -24,7 +24,7 @@ let isFullscreen = $state(false);
 let canFullscreen = $state(false);
 
 let hasData = $derived(viewerData && viewerData.pageUrls.length > 0);
-let isCardState = $derived(!hasData || !!error || !app);
+let isCardState = $derived((!hasData && !isStreaming) || !!error || !app);
 
 $effect(() => {
   if (hostContext?.theme) applyDocumentTheme(hostContext.theme);
