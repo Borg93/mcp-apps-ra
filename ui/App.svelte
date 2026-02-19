@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onMount } from "svelte";
+import { onMount, onDestroy } from "svelte";
 import {
   App,
   applyDocumentTheme,
@@ -20,6 +20,8 @@ let viewerData = $state<ViewerData | null>(null);
 let error = $state<string | null>(null);
 let isStreaming = $state(false);
 let streamingMessage = $state("");
+let isFullscreen = $state(false);
+let canFullscreen = $state(false);
 
 let hasData = $derived(viewerData && viewerData.pageUrls.length > 0);
 let isCardState = $derived(!hasData || !!error || !app);
@@ -30,15 +32,29 @@ $effect(() => {
   if (hostContext?.styles?.css?.fonts) applyHostFonts(hostContext.styles.css.fonts);
 });
 
-// Adapt sizing per containerDimensions spec
+// Track display mode from host context
+$effect(() => {
+  if (hostContext?.displayMode !== undefined) {
+    isFullscreen = hostContext.displayMode === "fullscreen";
+  }
+  if (hostContext?.availableDisplayModes !== undefined) {
+    canFullscreen = hostContext.availableDisplayModes.includes("fullscreen");
+  }
+});
+
+// Adapt sizing per containerDimensions spec — skip in fullscreen (host controls size)
 $effect(() => {
   if (!app) return;
+
+  if (isFullscreen) {
+    document.documentElement.style.height = "100vh";
+    return;
+  }
 
   const desired = (isCardState && !isStreaming) ? CARD_HEIGHT : VIEWER_HEIGHT;
   const dims = hostContext?.containerDimensions as Record<string, number> | undefined;
 
   if (dims && "height" in dims) {
-    // Fixed height — host controls, fill the container (no sendSizeChanged needed)
     document.documentElement.style.height = "100vh";
     return;
   }
@@ -46,23 +62,39 @@ $effect(() => {
   document.documentElement.style.height = "";
 
   if (dims && "maxHeight" in dims && dims.maxHeight) {
-    // Flexible with max — don't exceed host's maxHeight
     setTimeout(() => app?.sendSizeChanged({ height: Math.min(desired, dims.maxHeight) }), 50);
   } else {
-    // Unbounded — we control height
     setTimeout(() => app?.sendSizeChanged({ height: desired }), 50);
   }
 });
 
+async function toggleFullscreen() {
+  if (!app) return;
+  const newMode = isFullscreen ? "inline" : "fullscreen";
+  try {
+    const result = await app.requestDisplayMode({ mode: newMode });
+    isFullscreen = result.mode === "fullscreen";
+  } catch (err) {
+    console.error("Failed to change display mode:", err);
+  }
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape" && isFullscreen) {
+    toggleFullscreen();
+  }
+}
+
 onMount(async () => {
+  document.addEventListener("keydown", handleKeydown);
+
   const instance = new App(
     { name: "Document Viewer", version: "1.0.0" },
-    { availableDisplayModes: ["inline"] },
+    { availableDisplayModes: ["inline", "fullscreen"] },
     { autoResize: false },
   );
 
   instance.ontoolinputpartial = (params) => {
-    // Show skeleton while the LLM is still streaming the tool call
     if (!viewerData) {
       isStreaming = true;
     }
@@ -76,7 +108,6 @@ onMount(async () => {
 
     if (imageUrls && altoUrls && imageUrls.length === altoUrls.length) {
       const rawMetadata = args?.metadata as string[] | undefined;
-      // Normalize metadata to match page count — pad or truncate
       const pageMetadata = Array.from(
         { length: imageUrls.length },
         (_, i) => rawMetadata?.[i] ?? "",
@@ -120,16 +151,42 @@ onMount(async () => {
   app = instance;
   hostContext = instance.getHostContext();
 });
+
+onDestroy(() => {
+  document.removeEventListener("keydown", handleKeydown);
+});
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <main
   class="main"
   class:card-state={isCardState}
+  class:fullscreen={isFullscreen}
   style:padding-top={hostContext?.safeAreaInsets?.top ? `${hostContext.safeAreaInsets.top}px` : undefined}
   style:padding-right={hostContext?.safeAreaInsets?.right ? `${hostContext.safeAreaInsets.right}px` : undefined}
   style:padding-bottom={hostContext?.safeAreaInsets?.bottom ? `${hostContext.safeAreaInsets.bottom}px` : undefined}
   style:padding-left={hostContext?.safeAreaInsets?.left ? `${hostContext.safeAreaInsets.left}px` : undefined}
 >
+  {#if canFullscreen && hasData && !error}
+    <button
+      class="fullscreen-btn"
+      onclick={toggleFullscreen}
+      title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen"}
+    >
+      {#if isFullscreen}
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M5 1H1v4M15 1h-4M1 15h4M11 15h4v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M1 1l4.5 4.5M15 1l-4.5 4.5M1 15l4.5-4.5M15 15l-4.5-4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      {:else}
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M1 1l4.5 4.5M15 1l-4.5 4.5M1 15l4.5-4.5M15 15l-4.5-4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      {/if}
+    </button>
+  {/if}
+
   {#if !app}
     <div class="loading">Connecting...</div>
   {:else if isStreaming && !viewerData}
@@ -160,6 +217,7 @@ onMount(async () => {
 
 <style>
 .main {
+  position: relative;
   width: 100%;
   height: 100%;
   padding: var(--spacing-sm, 0.5rem);
@@ -171,9 +229,38 @@ onMount(async () => {
   overflow: hidden;
 }
 
+.main.fullscreen {
+  border-radius: 0;
+  border: none;
+}
+
 .main.card-state {
   justify-content: center;
   align-items: center;
+}
+
+.fullscreen-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--border-radius-sm, 4px);
+  background: transparent;
+  color: var(--color-text-tertiary, light-dark(#999, #666));
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.fullscreen-btn:hover {
+  opacity: 1;
 }
 
 .loading {
