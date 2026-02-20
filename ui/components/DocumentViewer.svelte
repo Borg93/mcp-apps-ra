@@ -79,10 +79,16 @@ function drawOverlays(ctx: CanvasRenderingContext2D, transform: Transform) {
     }
     ctx.closePath();
 
-    ctx.fillStyle = isHighlighted ? "rgba(193, 95, 60, 0.3)" : "rgba(193, 95, 60, 0.15)";
+    ctx.fillStyle = isHighlighted
+      ? hexToRgba(polygonColor, Math.min(1, polygonOpacity * 2))
+      : hexToRgba(polygonColor, polygonOpacity);
     ctx.fill();
-    ctx.strokeStyle = isHighlighted ? "rgba(193, 95, 60, 1)" : "rgba(193, 95, 60, 0.7)";
-    ctx.lineWidth = isHighlighted ? 3 / transform.scale : 2 / transform.scale;
+    ctx.strokeStyle = isHighlighted
+      ? hexToRgba(polygonColor, 1)
+      : hexToRgba(polygonColor, Math.min(1, polygonOpacity * 5));
+    ctx.lineWidth = isHighlighted
+      ? (polygonThickness + 1) / transform.scale
+      : polygonThickness / transform.scale;
     ctx.stroke();
   }
 }
@@ -193,6 +199,16 @@ async function sendContextUpdate(selectedLine?: TextLine) {
 }
 
 // ---------------------------------------------------------------------------
+// Redraw when polygon style changes
+// ---------------------------------------------------------------------------
+
+$effect(() => {
+  // Subscribe to all three style values
+  polygonColor; polygonThickness; polygonOpacity;
+  controller?.requestDraw();
+});
+
+// ---------------------------------------------------------------------------
 // Watch pageData changes — load image and set on controller
 // ---------------------------------------------------------------------------
 
@@ -287,6 +303,14 @@ onDestroy(() => {
       onResetView={() => controller?.resetView()}
       {onToggleFullscreen}
       {onToggleThumbnails}
+      {polygonColor}
+      {polygonThickness}
+      {polygonOpacity}
+      onPolygonStyleChange={(key, value) => {
+        if (key === 'color') polygonColor = value as string;
+        else if (key === 'thickness') polygonThickness = value as number;
+        else if (key === 'opacity') polygonOpacity = value as number;
+      }}
     />
 
     {#if hasTextLines}
