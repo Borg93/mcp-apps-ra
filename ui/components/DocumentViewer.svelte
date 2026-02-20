@@ -6,6 +6,7 @@ import type { PolygonHit } from "../lib/geometry";
 import { buildPolygonHits, findHitAtImageCoord } from "../lib/geometry";
 import { CanvasController, type Transform } from "../lib/canvas";
 import TranscriptionPanel from "./TranscriptionPanel.svelte";
+import CanvasToolbar from "./CanvasToolbar.svelte";
 
 interface Props {
   app: App;
@@ -14,9 +15,12 @@ interface Props {
   totalPages: number;
   pageMetadata: string;
   onPageChange: (index: number) => void;
+  canFullscreen: boolean;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
 }
 
-let { app, pageData, pageIndex, totalPages, pageMetadata, onPageChange }: Props = $props();
+let { app, pageData, pageIndex, totalPages, pageMetadata, onPageChange, canFullscreen, isFullscreen, onToggleFullscreen }: Props = $props();
 
 // ---------------------------------------------------------------------------
 // State
@@ -25,6 +29,7 @@ let { app, pageData, pageIndex, totalPages, pageMetadata, onPageChange }: Props 
 let tooltip = $state<TooltipState | null>(null);
 let highlightedLineId = $state<string | null>(null);
 let showPanel = $state(false);
+let panelWidth = $state(280);
 
 let textLines = $derived(pageData?.alto?.textLines ?? []);
 let hasTextLines = $derived(textLines.length > 0);
@@ -71,6 +76,12 @@ function drawOverlays(ctx: CanvasRenderingContext2D, transform: Transform) {
 function handleHover(imgX: number, imgY: number, screenX: number, screenY: number): string | null {
   if (!currentPolygons.length) {
     if (tooltip) { tooltip = null; highlightedLineId = null; controller.requestDraw(); }
+    return null;
+  }
+
+  // When the transcription panel is open, skip tooltip (avoids double info)
+  if (showPanel) {
+    if (tooltip) { tooltip = null; }
     return null;
   }
 
@@ -247,25 +258,26 @@ onDestroy(() => {
       <div class="page-info">{pageMetadata}</div>
     {/if}
 
+    <CanvasToolbar
+      showTranscription={showPanel}
+      hasTranscription={hasTextLines}
+      {canFullscreen}
+      {isFullscreen}
+      rightOffset={showPanel ? panelWidth : 0}
+      onToggleTranscription={() => showPanel = !showPanel}
+      onResetView={() => controller?.resetView()}
+      {onToggleFullscreen}
+    />
+
     {#if hasTextLines}
-      {#if !showPanel}
-        <button
-          class="panel-toggle"
-          onclick={() => showPanel = true}
-          title="Show transcription"
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-        </button>
-      {/if}
       <TranscriptionPanel
         {textLines}
         {highlightedLineId}
         open={showPanel}
+        width={panelWidth}
+        onWidthChange={(w) => panelWidth = w}
         onLineHover={handlePanelLineHover}
         onLineClick={handlePanelLineClick}
-        onClose={() => showPanel = false}
       />
     {/if}
   </div>
@@ -302,45 +314,19 @@ onDestroy(() => {
 
 .page-info {
   position: absolute;
-  bottom: var(--spacing-sm, 0.5rem);
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.4);
-  color: rgba(255, 255, 255, 0.85);
-  padding: var(--spacing-xs, 0.25rem) var(--spacing-md, 0.75rem);
-  border-radius: var(--border-radius-md, 6px);
-  font-size: var(--font-text-sm-size, 0.875rem);
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: rgba(255, 255, 255, 0.6);
+  padding: 2px 8px;
+  border-radius: var(--border-radius-sm, 4px);
+  font-size: var(--font-text-xs-size, 0.75rem);
   white-space: nowrap;
   pointer-events: none;
   z-index: 10;
-  max-width: 80%;
+  max-width: 60%;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.panel-toggle {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 15;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: var(--border-radius-sm, 4px);
-  background: var(--color-background-primary, light-dark(#faf9f5, #1a1815));
-  color: var(--color-text-secondary, light-dark(#5c5c5c, #a8a6a3));
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.15s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.panel-toggle:hover {
-  opacity: 1;
 }
 
 .tooltip {

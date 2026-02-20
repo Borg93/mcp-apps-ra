@@ -15,6 +15,7 @@ dev:
 
 # Run server in HTTP mode (for testing with basic-host)
 serve: build
+	@lsof -ti:3001 | xargs kill -9 2>/dev/null || true
 	uv run python server.py
 
 # Run server in stdio mode (for Claude Desktop)

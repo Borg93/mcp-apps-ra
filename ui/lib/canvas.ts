@@ -122,6 +122,12 @@ export class CanvasController {
            screenY >= margin && screenY <= ch - margin;
   }
 
+  /** Reset the view to fit the image in the canvas. */
+  resetView(): void {
+    this.fitToCanvas();
+    this.draw();
+  }
+
   /** Pan so that the given image-space point is centered on the canvas. */
   centerOn(imgX: number, imgY: number): void {
     if (!this.canvas) return;

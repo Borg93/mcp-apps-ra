@@ -167,26 +167,6 @@ onDestroy(() => {
   style:padding-bottom={hostContext?.safeAreaInsets?.bottom ? `${hostContext.safeAreaInsets.bottom}px` : undefined}
   style:padding-left={hostContext?.safeAreaInsets?.left ? `${hostContext.safeAreaInsets.left}px` : undefined}
 >
-  {#if canFullscreen && hasData && !error}
-    <button
-      class="fullscreen-btn"
-      onclick={toggleFullscreen}
-      title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen"}
-    >
-      {#if isFullscreen}
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <path d="M5 1H1v4M15 1h-4M1 15h4M11 15h4v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M1 1l4.5 4.5M15 1l-4.5 4.5M1 15l4.5-4.5M15 15l-4.5-4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      {:else}
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M1 1l4.5 4.5M15 1l-4.5 4.5M1 15l4.5-4.5M15 15l-4.5-4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      {/if}
-    </button>
-  {/if}
-
   {#if !app}
     <div class="loading">Connecting...</div>
   {:else if isStreaming && !viewerData}
@@ -205,7 +185,13 @@ onDestroy(() => {
     </div>
   {:else if viewerData && hasData && !error}
     {#key viewerData}
-      <DocumentContainer app={app} data={viewerData} />
+      <DocumentContainer
+        app={app}
+        data={viewerData}
+        {canFullscreen}
+        {isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
+      />
     {/key}
   {:else if error}
     <div class="error-state">
@@ -237,30 +223,6 @@ onDestroy(() => {
 .main.card-state {
   justify-content: center;
   align-items: center;
-}
-
-.fullscreen-btn {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--border-radius-sm, 4px);
-  background: transparent;
-  color: var(--color-text-tertiary, light-dark(#999, #666));
-  cursor: pointer;
-  opacity: 0.5;
-  transition: opacity 0.15s ease;
-}
-
-.fullscreen-btn:hover {
-  opacity: 1;
 }
 
 .loading {

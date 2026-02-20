@@ -8,9 +8,12 @@ import ThumbnailStrip from "./ThumbnailStrip.svelte";
 interface Props {
   app: App;
   data: ViewerData;
+  canFullscreen: boolean;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
 }
 
-let { app, data }: Props = $props();
+let { app, data, canFullscreen, isFullscreen, onToggleFullscreen }: Props = $props();
 
 // ---------------------------------------------------------------------------
 // State
@@ -127,6 +130,9 @@ $effect(() => {
       {totalPages}
       pageMetadata={currentPageMetadata}
       onPageChange={handlePageSelect}
+      {canFullscreen}
+      {isFullscreen}
+      {onToggleFullscreen}
     />
   {:else}
     <div class="page-loading">
