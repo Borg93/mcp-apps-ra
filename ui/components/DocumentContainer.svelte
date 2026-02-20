@@ -24,6 +24,7 @@ let totalPages = $derived(data.pageUrls.length);
 let hasThumbnails = $derived(data.pageUrls.length > 1);
 let showThumbnails = $state(true);
 let currentPageMetadata = $derived(data.pageMetadata[currentPageIndex] ?? "");
+let thumbnailStripWidth = $state(120);
 
 // Client-side page cache (seeded lazily in the page-index effect below)
 let pageCache = new Map<number, PageData>();
@@ -31,6 +32,28 @@ let currentPage = $state<PageData | null>(null);
 
 function handlePageSelect(index: number) {
   currentPageIndex = index;
+}
+
+function handlePrevPage() {
+  if (currentPageIndex > 0) currentPageIndex--;
+}
+
+function handleNextPage() {
+  if (currentPageIndex < totalPages - 1) currentPageIndex++;
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  const tag = (e.target as HTMLElement)?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+  if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+    e.preventDefault();
+    handlePrevPage();
+  } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+    e.preventDefault();
+    handleNextPage();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -114,14 +137,17 @@ $effect(() => {
 });
 </script>
 
-<div class="split-layout">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="split-layout" tabindex="-1" onkeydown={handleKeydown}>
   {#if hasThumbnails}
-    <div class="thumbnail-wrapper" class:collapsed={!showThumbnails}>
+    <div class="thumbnail-wrapper" class:collapsed={!showThumbnails} style:width="{showThumbnails ? thumbnailStripWidth : 0}px" style:min-width="{showThumbnails ? thumbnailStripWidth : 0}px">
       <ThumbnailStrip
         {app}
         {data}
         {currentPageIndex}
         onPageSelect={handlePageSelect}
+        width={thumbnailStripWidth}
+        onWidthChange={(w) => thumbnailStripWidth = w}
       />
     </div>
   {/if}
@@ -138,6 +164,8 @@ $effect(() => {
       {hasThumbnails}
       {showThumbnails}
       onToggleThumbnails={() => showThumbnails = !showThumbnails}
+      onPrevPage={handlePrevPage}
+      onNextPage={handleNextPage}
     />
   {:else}
     <div class="page-loading">
@@ -156,9 +184,11 @@ $effect(() => {
   gap: 0;
 }
 
+.split-layout:focus {
+  outline: none;
+}
+
 .thumbnail-wrapper {
-  width: 120px;
-  min-width: 120px;
   overflow: hidden;
   transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }

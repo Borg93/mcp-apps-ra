@@ -9,9 +9,11 @@ interface Props {
   data: ViewerData;
   currentPageIndex: number;
   onPageSelect: (index: number) => void;
+  width?: number;
+  onWidthChange?: (width: number) => void;
 }
 
-let { app, data, currentPageIndex, onPageSelect }: Props = $props();
+let { app, data, currentPageIndex, onPageSelect, width = 120, onWidthChange }: Props = $props();
 
 // ---------------------------------------------------------------------------
 // State
@@ -38,6 +40,33 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let batchInFlight = false;
 let batchQueue: number[] = [];
 let destroyed = false;
+
+// Drag-resize state
+let resizing = $state(false);
+let dragStartX = 0;
+let dragStartWidth = 0;
+
+function onHandlePointerDown(e: PointerEvent) {
+  e.preventDefault();
+  resizing = true;
+  dragStartX = e.clientX;
+  dragStartWidth = width;
+  (e.target as HTMLElement).setPointerCapture(e.pointerId);
+}
+
+function onHandlePointerMove(e: PointerEvent) {
+  if (!resizing) return;
+  // Dragging right = increasing width (handle is on right edge)
+  const delta = e.clientX - dragStartX;
+  const newWidth = Math.max(80, Math.min(250, dragStartWidth + delta));
+  onWidthChange?.(newWidth);
+}
+
+function onHandlePointerUp(e: PointerEvent) {
+  if (!resizing) return;
+  resizing = false;
+  (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+}
 
 // ---------------------------------------------------------------------------
 // Batch fetching
@@ -183,7 +212,14 @@ function getThumbnailUrl(index: number): string | null {
 }
 </script>
 
-<div class="thumbnail-strip" bind:this={containerEl}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="thumbnail-strip" class:resizing bind:this={containerEl} style:width="{width}px" style:min-width="{width}px">
+  <div
+    class="resize-handle"
+    onpointerdown={onHandlePointerDown}
+    onpointermove={onHandlePointerMove}
+    onpointerup={onHandlePointerUp}
+  ></div>
   {#each Array(totalPages) as _, i}
     <div
       class="thumbnail-slot"
@@ -213,8 +249,6 @@ function getThumbnailUrl(index: number): string | null {
 
 <style>
 .thumbnail-strip {
-  width: 120px;
-  min-width: 120px;
   height: 100%;
   min-height: 0;
   overflow-y: auto;
@@ -226,6 +260,35 @@ function getThumbnailUrl(index: number): string | null {
   background: var(--color-background-secondary, light-dark(#f5f4ed, #201d18));
   border-right: 1px solid var(--color-border-primary, light-dark(#d4d2cb, #3a3632));
   border-radius: var(--border-radius-lg, 10px) 0 0 var(--border-radius-lg, 10px);
+  position: relative;
+}
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 11;
+}
+
+.resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 2px;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.resize-handle:hover::after,
+.thumbnail-strip.resizing .resize-handle::after {
+  background: var(--color-accent, #c15f3c);
+  opacity: 0.4;
 }
 
 .thumbnail-slot {
@@ -237,7 +300,7 @@ function getThumbnailUrl(index: number): string | null {
 }
 
 .thumbnail-inner {
-  width: 100px;
+  width: calc(100% - 16px);
   min-height: 80px;
   border: 2px solid transparent;
   border-radius: var(--border-radius-md, 6px);

@@ -21,9 +21,13 @@ interface Props {
   hasThumbnails: boolean;
   showThumbnails: boolean;
   onToggleThumbnails: () => void;
+  onPrevPage: () => void;
+  onNextPage: () => void;
 }
 
-let { app, pageData, pageIndex, totalPages, pageMetadata, canFullscreen, isFullscreen, onToggleFullscreen, hasThumbnails, showThumbnails, onToggleThumbnails }: Props = $props();
+let { app, pageData, pageIndex, totalPages, pageMetadata, canFullscreen, isFullscreen, onToggleFullscreen, hasThumbnails, showThumbnails, onToggleThumbnails, onPrevPage, onNextPage }: Props = $props();
+
+let showNavButtons = $derived(!showThumbnails || !hasThumbnails);
 
 // ---------------------------------------------------------------------------
 // State
@@ -225,7 +229,17 @@ onDestroy(() => {
       onwheel={onWheel}
     ></canvas>
     <div class="top-left-info">
-      <div class="page-indicator">Page {pageIndex + 1} / {totalPages}</div>
+      {#if showNavButtons}
+        <button class="nav-btn" disabled={pageIndex <= 0} onclick={onPrevPage} aria-label="Previous page">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 3L5 7L9 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      {/if}
+      <div class="page-indicator">{pageIndex + 1}/{totalPages}</div>
+      {#if showNavButtons}
+        <button class="nav-btn" disabled={pageIndex >= totalPages - 1} onclick={onNextPage} aria-label="Next page">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3L9 7L5 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      {/if}
       {#if pageMetadata}
         <div class="page-info">{pageMetadata}</div>
       {/if}
@@ -307,6 +321,30 @@ onDestroy(() => {
   flex-direction: row;
   align-items: center;
   gap: 6px;
+}
+
+.nav-btn {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--border-radius-sm, 4px);
+  background: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.1));
+  color: var(--color-text-secondary, light-dark(#5c5c5c, #a8a6a3));
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-btn:hover:not(:disabled) {
+  background: light-dark(rgba(0, 0, 0, 0.2), rgba(255, 255, 255, 0.2));
+  color: var(--color-text-primary, light-dark(#1a1815, #e8e6e3));
+}
+.nav-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .page-indicator,
