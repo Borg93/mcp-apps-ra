@@ -18,9 +18,12 @@ interface Props {
   canFullscreen: boolean;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+  hasThumbnails: boolean;
+  showThumbnails: boolean;
+  onToggleThumbnails: () => void;
 }
 
-let { app, pageData, pageIndex, totalPages, pageMetadata, onPageChange, canFullscreen, isFullscreen, onToggleFullscreen }: Props = $props();
+let { app, pageData, pageIndex, totalPages, pageMetadata, onPageChange, canFullscreen, isFullscreen, onToggleFullscreen, hasThumbnails, showThumbnails, onToggleThumbnails }: Props = $props();
 
 // ---------------------------------------------------------------------------
 // State
@@ -30,6 +33,18 @@ let tooltip = $state<TooltipState | null>(null);
 let highlightedLineId = $state<string | null>(null);
 let showPanel = $state(false);
 let panelWidth = $state(280);
+
+// Polygon style controls
+let polygonColor = $state("#c15f3c");
+let polygonThickness = $state(2);
+let polygonOpacity = $state(0.15);
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 let textLines = $derived(pageData?.alto?.textLines ?? []);
 let hasTextLines = $derived(textLines.length > 0);
@@ -79,15 +94,12 @@ function handleHover(imgX: number, imgY: number, screenX: number, screenY: numbe
     return null;
   }
 
-  // When the transcription panel is open, skip tooltip (avoids double info)
-  if (showPanel) {
-    if (tooltip) { tooltip = null; }
-    return null;
-  }
-
   const hit = findHitAtImageCoord(imgX, imgY, currentPolygons);
   if (hit) {
-    tooltip = { text: hit.line.transcription, x: screenX + 15, y: screenY + 15 };
+    // Only show tooltip when panel is closed (panel already shows the text)
+    if (!showPanel) {
+      tooltip = { text: hit.line.transcription, x: screenX + 15, y: screenY + 15 };
+    }
     if (highlightedLineId !== hit.lineId) {
       highlightedLineId = hit.lineId;
       controller.requestDraw();
@@ -95,7 +107,7 @@ function handleHover(imgX: number, imgY: number, screenX: number, screenY: numbe
     return "pointer";
   }
 
-  if (tooltip) {
+  if (tooltip || highlightedLineId) {
     tooltip = null;
     highlightedLineId = null;
     controller.requestDraw();
@@ -254,19 +266,27 @@ onDestroy(() => {
       onpointerleave={onPointerLeave}
       onwheel={onWheel}
     ></canvas>
-    {#if pageMetadata}
-      <div class="page-info">{pageMetadata}</div>
-    {/if}
+    <div class="top-left-info">
+      {#if hasThumbnails && !showThumbnails}
+        <div class="page-indicator">Page {pageIndex + 1} / {totalPages}</div>
+      {/if}
+      {#if pageMetadata}
+        <div class="page-info">{pageMetadata}</div>
+      {/if}
+    </div>
 
     <CanvasToolbar
       showTranscription={showPanel}
       hasTranscription={hasTextLines}
       {canFullscreen}
       {isFullscreen}
+      {hasThumbnails}
+      {showThumbnails}
       rightOffset={showPanel ? panelWidth : 0}
       onToggleTranscription={() => showPanel = !showPanel}
       onResetView={() => controller?.resetView()}
       {onToggleFullscreen}
+      {onToggleThumbnails}
     />
 
     {#if hasTextLines}
@@ -312,19 +332,26 @@ onDestroy(() => {
   height: 100%;
 }
 
-.page-info {
+.top-left-info {
   position: absolute;
   top: 8px;
   left: 8px;
-  background: rgba(0, 0, 0, 0.2);
-  color: rgba(255, 255, 255, 0.6);
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.page-indicator,
+.page-info {
+  background: var(--color-background-tertiary, light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.08)));
+  color: var(--color-text-tertiary, light-dark(#999, #666));
   padding: 2px 8px;
   border-radius: var(--border-radius-sm, 4px);
   font-size: var(--font-text-xs-size, 0.75rem);
   white-space: nowrap;
-  pointer-events: none;
-  z-index: 10;
-  max-width: 60%;
+  max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
 }

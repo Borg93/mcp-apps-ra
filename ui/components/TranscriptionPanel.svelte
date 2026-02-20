@@ -100,7 +100,7 @@ $effect(() => {
   z-index: 10;
   transform: translateX(100%);
   pointer-events: none;
-  transition: transform 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: inherit;
 }
 

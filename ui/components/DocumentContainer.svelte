@@ -21,7 +21,8 @@ let { app, data, canFullscreen, isFullscreen, onToggleFullscreen }: Props = $pro
 
 let currentPageIndex = $state(0);
 let totalPages = $derived(data.pageUrls.length);
-let showThumbnails = $derived(data.pageUrls.length > 1);
+let hasThumbnails = $derived(data.pageUrls.length > 1);
+let showThumbnails = $state(true);
 let currentPageMetadata = $derived(data.pageMetadata[currentPageIndex] ?? "");
 
 // Client-side page cache (seeded lazily in the page-index effect below)
@@ -114,13 +115,15 @@ $effect(() => {
 </script>
 
 <div class="split-layout">
-  {#if showThumbnails}
-    <ThumbnailStrip
-      {app}
-      {data}
-      {currentPageIndex}
-      onPageSelect={handlePageSelect}
-    />
+  {#if hasThumbnails}
+    <div class="thumbnail-wrapper" class:collapsed={!showThumbnails}>
+      <ThumbnailStrip
+        {app}
+        {data}
+        {currentPageIndex}
+        onPageSelect={handlePageSelect}
+      />
+    </div>
   {/if}
   {#if currentPage}
     <DocumentViewer
@@ -133,6 +136,9 @@ $effect(() => {
       {canFullscreen}
       {isFullscreen}
       {onToggleFullscreen}
+      {hasThumbnails}
+      {showThumbnails}
+      onToggleThumbnails={() => showThumbnails = !showThumbnails}
     />
   {:else}
     <div class="page-loading">
@@ -149,6 +155,18 @@ $effect(() => {
   max-height: 100%;
   overflow: hidden;
   gap: 0;
+}
+
+.thumbnail-wrapper {
+  width: 120px;
+  min-width: 120px;
+  overflow: hidden;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.thumbnail-wrapper.collapsed {
+  width: 0;
+  min-width: 0;
 }
 
 .page-loading {

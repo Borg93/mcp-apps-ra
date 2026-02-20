@@ -4,10 +4,13 @@ interface Props {
   hasTranscription: boolean;
   canFullscreen: boolean;
   isFullscreen: boolean;
+  hasThumbnails: boolean;
+  showThumbnails: boolean;
   rightOffset?: number;
   onToggleTranscription: () => void;
   onResetView: () => void;
   onToggleFullscreen: () => void;
+  onToggleThumbnails: () => void;
 }
 
 let {
@@ -15,10 +18,13 @@ let {
   hasTranscription,
   canFullscreen,
   isFullscreen,
+  hasThumbnails,
+  showThumbnails,
   rightOffset = 0,
   onToggleTranscription,
   onResetView,
   onToggleFullscreen,
+  onToggleThumbnails,
 }: Props = $props();
 </script>
 
@@ -32,6 +38,21 @@ let {
     >
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
         <path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  {/if}
+
+  {#if hasThumbnails}
+    <button
+      class="toolbar-btn"
+      class:active={showThumbnails}
+      onclick={onToggleThumbnails}
+      title={showThumbnails ? "Hide pages" : "Show pages"}
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <rect x="1" y="1" width="4" height="5" rx="0.5" stroke="currentColor" stroke-width="1.3"/>
+        <rect x="1" y="8.5" width="4" height="5" rx="0.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M8 3h7M8 7h5M8 11h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
       </svg>
     </button>
   {/if}
@@ -76,7 +97,7 @@ let {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  transition: right 0.2s ease;
+  transition: right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .toolbar-btn {
