@@ -174,6 +174,7 @@ $effect(() => {
   align-items: center;
   justify-content: center;
   background: var(--color-background-secondary, light-dark(#f5f4ed, #201d18));
+  border-radius: var(--border-radius-md, 6px);
 }
 
 .page-loading-shimmer {

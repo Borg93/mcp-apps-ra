@@ -184,7 +184,6 @@ function getThumbnailUrl(index: number): string | null {
 </script>
 
 <div class="thumbnail-strip" bind:this={containerEl}>
-  <div class="page-indicator">Page {currentPageIndex + 1} / {totalPages}</div>
   {#each Array(totalPages) as _, i}
     <div
       class="thumbnail-slot"
@@ -213,22 +212,10 @@ function getThumbnailUrl(index: number): string | null {
 </div>
 
 <style>
-.page-indicator {
-  text-align: center;
-  font-size: 11px;
-  color: var(--color-text-secondary, light-dark(#5c5c5c, #a8a6a3));
-  padding: var(--spacing-xs, 0.25rem) 0;
-  flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--color-background-secondary, light-dark(#f5f4ed, #201d18));
-  border-bottom: 1px solid var(--color-border-primary, light-dark(#d4d2cb, #3a3632));
-}
-
 .thumbnail-strip {
   width: 120px;
   min-width: 120px;
+  height: 100%;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;

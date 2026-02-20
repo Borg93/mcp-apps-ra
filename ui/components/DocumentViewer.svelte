@@ -225,9 +225,7 @@ onDestroy(() => {
       onwheel={onWheel}
     ></canvas>
     <div class="top-left-info">
-      {#if hasThumbnails && !showThumbnails}
-        <div class="page-indicator">Page {pageIndex + 1} / {totalPages}</div>
-      {/if}
+      <div class="page-indicator">Page {pageIndex + 1} / {totalPages}</div>
       {#if pageMetadata}
         <div class="page-info">{pageMetadata}</div>
       {/if}
@@ -291,6 +289,7 @@ onDestroy(() => {
   background: var(--color-background-secondary, light-dark(#f5f4ed, #201d18));
   overflow: hidden;
   position: relative;
+  border-radius: var(--border-radius-md, 6px);
 }
 .canvas-container canvas {
   display: block;
@@ -305,13 +304,14 @@ onDestroy(() => {
   z-index: 10;
   pointer-events: none;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 
 .page-indicator,
 .page-info {
-  background: var(--color-background-tertiary, light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.08)));
+  background: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.05));
   color: var(--color-text-tertiary, light-dark(#999, #666));
   padding: 2px 8px;
   border-radius: var(--border-radius-sm, 4px);
