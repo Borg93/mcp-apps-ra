@@ -1,14 +1,5 @@
 <script lang="ts">
-import { onMount, onDestroy } from "svelte";
-
-const SWATCHES = [
-  "#c15f3c", // terracotta
-  "#3b82f6", // blue
-  "#10b981", // green
-  "#f59e0b", // amber
-  "#8b5cf6", // purple
-  "#ef4444", // red
-] as const;
+import PolygonStylePopover from "./PolygonStylePopover.svelte";
 
 interface Props {
   showTranscription: boolean;
@@ -47,24 +38,6 @@ let {
 }: Props = $props();
 
 let showPopover = $state(false);
-let popoverBtnEl: HTMLButtonElement;
-
-function onWindowClick(e: MouseEvent) {
-  if (!showPopover) return;
-  // Close if click is outside the popover and its trigger button
-  const target = e.target as Node;
-  const popover = popoverBtnEl?.parentElement?.querySelector('.style-popover');
-  if (popover && !popover.contains(target) && !popoverBtnEl.contains(target)) {
-    showPopover = false;
-  }
-}
-
-onMount(() => {
-  window.addEventListener('click', onWindowClick, true);
-});
-onDestroy(() => {
-  window.removeEventListener('click', onWindowClick, true);
-});
 </script>
 
 <div class="toolbar" style:right="{rightOffset + 8}px">
@@ -110,7 +83,6 @@ onDestroy(() => {
   <!-- Polygon style settings -->
   <div class="popover-anchor">
     <button
-      bind:this={popoverBtnEl}
       class="toolbar-btn"
       class:active={showPopover}
       onclick={() => showPopover = !showPopover}
@@ -123,44 +95,13 @@ onDestroy(() => {
     </button>
 
     {#if showPopover}
-      <div class="style-popover">
-        <div class="popover-section">
-          <span class="popover-label">Color</span>
-          <div class="swatches">
-            {#each SWATCHES as swatch}
-              <button
-                class="swatch"
-                class:selected={polygonColor === swatch}
-                style:background={swatch}
-                onclick={() => onPolygonStyleChange?.('color', swatch)}
-                title={swatch}
-              ></button>
-            {/each}
-          </div>
-        </div>
-        <div class="popover-section">
-          <span class="popover-label">Thickness</span>
-          <input
-            type="range"
-            min="1"
-            max="5"
-            step="0.5"
-            value={polygonThickness}
-            oninput={(e) => onPolygonStyleChange?.('thickness', parseFloat((e.target as HTMLInputElement).value))}
-          />
-        </div>
-        <div class="popover-section">
-          <span class="popover-label">Opacity</span>
-          <input
-            type="range"
-            min="0.05"
-            max="0.5"
-            step="0.05"
-            value={polygonOpacity}
-            oninput={(e) => onPolygonStyleChange?.('opacity', parseFloat((e.target as HTMLInputElement).value))}
-          />
-        </div>
-      </div>
+      <PolygonStylePopover
+        color={polygonColor}
+        thickness={polygonThickness}
+        opacity={polygonOpacity}
+        onChange={(key, value) => onPolygonStyleChange?.(key, value)}
+        onClose={() => showPopover = false}
+      />
     {/if}
   </div>
 
@@ -222,68 +163,7 @@ onDestroy(() => {
   color: #fff;
 }
 
-/* Popover anchor */
 .popover-anchor {
   position: relative;
-}
-
-.style-popover {
-  position: absolute;
-  right: 100%;
-  top: 0;
-  margin-right: 6px;
-  width: 160px;
-  padding: 8px;
-  background: var(--color-background-primary, light-dark(#faf9f5, #1a1815));
-  border-radius: var(--border-radius-md, 6px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 20;
-}
-
-.popover-section {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.popover-label {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-tertiary, light-dark(#999, #666));
-}
-
-.swatches {
-  display: flex;
-  gap: 4px;
-}
-
-.swatch {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
-  transition: border-color 0.15s;
-}
-
-.swatch:hover {
-  border-color: var(--color-text-tertiary, light-dark(#999, #666));
-}
-
-.swatch.selected {
-  border-color: var(--color-text-primary, light-dark(#1a1815, #faf9f5));
-  box-shadow: 0 0 0 1.5px var(--color-background-primary, light-dark(#faf9f5, #1a1815));
-}
-
-.style-popover input[type="range"] {
-  width: 100%;
-  height: 4px;
-  accent-color: var(--color-accent, #c15f3c);
-  cursor: pointer;
 }
 </style>

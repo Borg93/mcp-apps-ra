@@ -7,6 +7,7 @@ import { buildPolygonHits, findHitAtImageCoord } from "../lib/geometry";
 import { CanvasController, type Transform } from "../lib/canvas";
 import TranscriptionPanel from "./TranscriptionPanel.svelte";
 import CanvasToolbar from "./CanvasToolbar.svelte";
+import { scheduleContextUpdate, resetContextState } from "../lib/context";
 
 interface Props {
   app: App;
@@ -125,7 +126,7 @@ function handleHover(imgX: number, imgY: number, screenX: number, screenY: numbe
 function handleClick(imgX: number, imgY: number) {
   if (!currentPolygons.length) return;
   const hit = findHitAtImageCoord(imgX, imgY, currentPolygons);
-  if (hit) scheduleContextUpdate(hit.line);
+  if (hit) scheduleContextUpdate(getContextState(), hit.line);
 }
 
 /** Handle pointer leave — clear tooltip + highlight */
@@ -154,48 +155,21 @@ function handlePanelLineClick(line: TextLine) {
   if (!controller?.isPointVisible(centerX, centerY)) {
     controller?.centerOn(centerX, centerY);
   }
-  scheduleContextUpdate(line);
+  scheduleContextUpdate(getContextState(), line);
 }
 
 // ---------------------------------------------------------------------------
-// Model context + text selection (debounced, capability-checked)
+// Model context helpers
 // ---------------------------------------------------------------------------
 
-let contextTimer: ReturnType<typeof setTimeout> | null = null;
-let lastSentContext = "";
-
-function scheduleContextUpdate(selectedLine?: TextLine) {
-  if (contextTimer) clearTimeout(contextTimer);
-  // Immediate for text selection (user clicked), debounced for page changes
-  const delay = selectedLine ? 0 : 500;
-  contextTimer = setTimeout(() => sendContextUpdate(selectedLine), delay);
-}
-
-async function sendContextUpdate(selectedLine?: TextLine) {
-  if (!app) return;
-  const caps = app.getHostCapabilities();
-  if (!caps?.updateModelContext) return;
-
-  const page = pageIndex + 1;
-  const lines = currentAlto?.textLines ?? [];
-  const fullText = lines.map(l => l.transcription).join("\n");
-
-  const parts = [`Document viewer: page ${page}/${totalPages}`];
-  if (pageMetadata) parts.push(`Page metadata: ${pageMetadata}`);
-  if (selectedLine) parts.push(`User selected text: "${selectedLine.transcription}"`);
-  parts.push(fullText ? `Full page transcription:\n${fullText}` : "(no transcribed text on this page)");
-
-  const text = parts.join("\n");
-  if (text === lastSentContext) return;
-  lastSentContext = text;
-
-  try {
-    await app.updateModelContext({
-      content: [{ type: "text", text }],
-    });
-  } catch (e) {
-    console.error("[updateModelContext]", e);
-  }
+function getContextState() {
+  return {
+    app,
+    pageIndex,
+    totalPages,
+    pageMetadata,
+    getTextLines: () => currentAlto?.textLines ?? [],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -227,7 +201,7 @@ $effect(() => {
     if (cancelled) return;
     if (controller) {
       controller.setImage(img);
-      scheduleContextUpdate();
+      scheduleContextUpdate(getContextState());
     }
   };
   img.onerror = () => {
@@ -266,6 +240,7 @@ onMount(() => {
 
 onDestroy(() => {
   controller?.destroy();
+  resetContextState();
 });
 </script>
 
