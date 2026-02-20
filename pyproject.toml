@@ -21,4 +21,6 @@ packages = ["src"]
 include = ["server.py", "src/**", "dist/**"]
 
 [dependency-groups]
-dev = []
+dev = [
+    "pytest>=9.0.2",
+]

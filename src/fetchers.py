@@ -18,7 +18,7 @@ import httpx
 from fastmcp.telemetry import get_tracer
 from PIL import Image
 
-from src.alto import fetch_alto_xml_from_url, parse_alto_xml
+from src.parser import detect_and_parse, fetch_alto_xml_from_url
 
 logger = logging.getLogger(__name__)
 tracer = get_tracer()
@@ -62,7 +62,7 @@ def fetch_and_parse_alto(url: str) -> dict:
     """Fetch ALTO XML and parse into structured text line data. Cached by URL."""
     with tracer.start_as_current_span("fetch_alto", attributes={"url": url}):
         xml = fetch_alto_xml_from_url(url)
-        data = parse_alto_xml(xml)
+        data = detect_and_parse(xml)
         return {
             "textLines": [
                 {
