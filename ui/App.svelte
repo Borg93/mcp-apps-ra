@@ -69,8 +69,10 @@ $effect(() => {
   if (targetHeight === lastSentHeight) return;
 
   document.documentElement.style.height = "";
-  lastSentHeight = targetHeight;
-  const timerId = setTimeout(() => app?.sendSizeChanged({ height: targetHeight }), 50);
+  const timerId = setTimeout(() => {
+    lastSentHeight = targetHeight;
+    app?.sendSizeChanged({ height: targetHeight });
+  }, 50);
   return () => clearTimeout(timerId);
 });
 
